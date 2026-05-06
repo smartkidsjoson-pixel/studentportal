@@ -224,7 +224,9 @@ export async function getSessionUserProfile(): Promise<SessionUser | null> {
   }
 
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const roleSource = profile?.role ?? metadata.role;
+  const roleSource = profile?.role;
+
+  console.log("ACTUAL ROLE FROM DB (data):", profile?.role);
 
   return {
     id: user.id,

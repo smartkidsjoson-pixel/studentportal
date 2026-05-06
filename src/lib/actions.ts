@@ -117,7 +117,7 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
     return handleActionError(e);
   }
 
-  revalidatePath('/classes');
+  revalidatePath('/classes', 'layout');
   redirect('/classes');
 }
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { RoleCheck } from '@/components/role-check';
 import { Sidebar } from '@/components/sidebar';
 import { requireSessionUser } from '@/lib/auth';
 
@@ -8,6 +9,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="page-shell">
+      <RoleCheck sessionRole={user.role} />
       <Sidebar schoolName="School MIS" />
       <main className="main-content">
         <div className="topbar">
