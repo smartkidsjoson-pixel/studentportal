@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 
 import { assignTeacherClassAction } from '@/lib/actions';
 import type { ClassSummary, TeacherProfile } from '@/lib/types';
@@ -9,9 +9,16 @@ const initialState = {} as { error?: string; success?: string };
 
 export function ClassAssignmentForm({ teachers, classes }: { teachers: TeacherProfile[]; classes: ClassSummary[] }) {
   const [state, formAction, pending] = useActionState(assignTeacherClassAction, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state.success) {
+      formRef.current?.reset();
+    }
+  }, [state.success]);
 
   return (
-    <form action={formAction} className="card">
+    <form ref={formRef} action={formAction} className="card">
       <div className="section-header" style={{ marginBottom: '0.9rem' }}>
         <h2>Assign Teacher to Class</h2>
         <p>Grant teachers access only to the classes they manage.</p>

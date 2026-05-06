@@ -58,40 +58,48 @@ export async function logoutAction() {
 
 export async function createStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireSessionUser();
-  const supabase = await createClient();
-  const payload = {
-    full_name: String(formData.get('full_name') ?? ''),
-    class_id: String(formData.get('class_id') ?? ''),
-    parent_contact: String(formData.get('parent_contact') ?? ''),
-    status: String(formData.get('status') ?? 'active'),
-  };
 
-  const { error } = await supabase.from('students').insert(payload);
-  if (error) {
-    return { error: error.message };
+  try {
+    const supabase = await createClient();
+    const payload = {
+      full_name: String(formData.get('full_name') ?? ''),
+      class_id: String(formData.get('class_id') ?? ''),
+      parent_contact: String(formData.get('parent_contact') ?? ''),
+      status: String(formData.get('status') ?? 'active'),
+    };
+
+    const { error } = await supabase.from('students').insert(payload);
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/students');
+    revalidatePath('/dashboard');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/students');
-  revalidatePath('/dashboard');
-  return { success: 'Student added successfully.' };
+  redirect('/students');
 }
 
 export async function createClassAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
-  const supabase = await createClient();
-  const payload = {
-    name: String(formData.get('name') ?? ''),
-    section: String(formData.get('section') ?? '') || null,
-    level_order: Number(formData.get('level_order') ?? 0),
-  };
 
-  const { error } = await supabase.from('classes').insert(payload);
-  if (error) {
-    return { error: error.message };
+  try {
+    const supabase = await createClient();
+    const payload = {
+      name: String(formData.get('name') ?? ''),
+      section: String(formData.get('section') ?? '') || null,
+      level_order: Number(formData.get('level_order') ?? 0),
+    };
+
+    const { error } = await supabase.from('classes').insert(payload);
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/classes');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/classes');
-  return { success: 'Class created successfully.' };
+  redirect('/classes');
 }
 
 export async function createTeacherAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -107,23 +115,25 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
     return { error: 'Provide valid staff details and a secure password.' };
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.createUser({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    user_metadata: {
-      full_name: parsed.data.full_name,
-      role: parsed.data.role,
-    },
-    email_confirm: true,
-  });
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.createUser({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      user_metadata: {
+        full_name: parsed.data.full_name,
+        role: parsed.data.role,
+      },
+      email_confirm: true,
+    });
+    if (error) throw new Error(error.message);
 
-  if (error) {
-    return { error: error.message };
+    revalidatePath('/teachers');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/teachers');
-  return { success: 'Staff account created successfully.' };
+  redirect('/teachers');
 }
 
 export async function createInitialAdminAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -167,80 +177,93 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
     return { error: 'Select a valid teacher and class.' };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('teacher_class_assignments')
-    .upsert({
-      teacher_id: parsed.data.teacher_id,
-      class_id: parsed.data.class_id,
-    }, { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' });
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('teacher_class_assignments')
+      .upsert({
+        teacher_id: parsed.data.teacher_id,
+        class_id: parsed.data.class_id,
+      }, { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' });
+    if (error) throw new Error(error.message);
 
-  if (error) {
-    return { error: error.message };
+    revalidatePath('/teachers');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/teachers');
-  return { success: 'Class assigned to staff successfully.' };
+  redirect('/teachers');
 }
 
 export async function recordPaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireSessionUser();
-  const supabase = await createClient();
-  const payload = {
-    fee_ledger_id: String(formData.get('fee_ledger_id') ?? ''),
-    amount: Number(formData.get('amount') ?? 0),
-    payment_date: String(formData.get('payment_date') ?? new Date().toISOString().slice(0, 10)),
-    payment_method: String(formData.get('payment_method') ?? 'cash'),
-  };
 
-  const { error } = await supabase.from('fee_payments').insert(payload);
-  if (error) {
-    return { error: error.message };
+  try {
+    const supabase = await createClient();
+    const payload = {
+      fee_ledger_id: String(formData.get('fee_ledger_id') ?? ''),
+      amount: Number(formData.get('amount') ?? 0),
+      payment_date: String(formData.get('payment_date') ?? new Date().toISOString().slice(0, 10)),
+      payment_method: String(formData.get('payment_method') ?? 'cash'),
+    };
+
+    const { error } = await supabase.from('fee_payments').insert(payload);
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/fees');
+    revalidatePath('/dashboard');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/fees');
-  revalidatePath('/dashboard');
-  return { success: 'Payment recorded successfully.' };
+  redirect('/fees');
 }
 
 export async function createFeeLedgerAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
-  const supabase = await createClient();
-  const payload = {
-    student_id: String(formData.get('student_id') ?? ''),
-    session_label: String(formData.get('session_label') ?? ''),
-    total_fee: Number(formData.get('total_fee') ?? 0),
-  };
 
-  const { error } = await supabase.from('student_fee_ledgers').insert(payload);
-  if (error) {
-    return { error: error.message };
+  try {
+    const supabase = await createClient();
+    const payload = {
+      student_id: String(formData.get('student_id') ?? ''),
+      session_label: String(formData.get('session_label') ?? ''),
+      total_fee: Number(formData.get('total_fee') ?? 0),
+    };
+
+    const { error } = await supabase.from('student_fee_ledgers').insert(payload);
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/fees');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/fees');
-  return { success: 'Fee ledger created successfully.' };
+  redirect('/fees');
 }
 
 export async function upsertMarkAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireSessionUser();
-  const supabase = await createClient();
-  const payload = {
-    student_id: String(formData.get('student_id') ?? ''),
-    subject_id: String(formData.get('subject_id') ?? ''),
-    term: String(formData.get('term') ?? 'TERM_1'),
-    score: Number(formData.get('score') ?? 0),
-    max_score: Number(formData.get('max_score') ?? 100),
-  };
 
-  const { error } = await supabase
-    .from('marks')
-    .upsert(payload, { onConflict: 'student_id,subject_id,term' });
+  try {
+    const supabase = await createClient();
+    const payload = {
+      student_id: String(formData.get('student_id') ?? ''),
+      subject_id: String(formData.get('subject_id') ?? ''),
+      term: String(formData.get('term') ?? 'TERM_1'),
+      score: Number(formData.get('score') ?? 0),
+      max_score: Number(formData.get('max_score') ?? 100),
+    };
 
-  if (error) {
-    return { error: error.message };
+    const { error } = await supabase
+      .from('marks')
+      .upsert(payload, { onConflict: 'student_id,subject_id,term' });
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/results');
+    revalidatePath('/dashboard');
+  } catch (e) {
+    return { error: e.message };
   }
 
-  revalidatePath('/results');
-  revalidatePath('/dashboard');
-  return { success: 'Marks updated successfully.' };
+  redirect('/results');
 }

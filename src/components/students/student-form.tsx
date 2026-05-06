@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 
 import { createStudentAction } from '@/lib/actions';
 import type { ClassSummary } from '@/lib/types';
@@ -9,9 +9,16 @@ const initialState = {} as { error?: string; success?: string };
 
 export function StudentForm({ classes }: { classes: ClassSummary[] }) {
   const [state, formAction, pending] = useActionState(createStudentAction, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state.success) {
+      formRef.current?.reset();
+    }
+  }, [state.success]);
 
   return (
-    <form action={formAction} className="card">
+    <form ref={formRef} action={formAction} className="card">
       <div className="section-header" style={{ marginBottom: '0.9rem' }}>
         <h2>Register Student</h2>
         <p>Create a student record with automatic admission number generation.</p>

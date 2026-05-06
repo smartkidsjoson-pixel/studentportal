@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 
 import { createClassAction } from '@/lib/actions';
 
@@ -8,9 +8,16 @@ const initialState = {} as { error?: string; success?: string };
 
 export function ClassForm() {
   const [state, formAction, pending] = useActionState(createClassAction, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state.success) {
+      formRef.current?.reset();
+    }
+  }, [state.success]);
 
   return (
-    <form action={formAction} className="card">
+    <form ref={formRef} action={formAction} className="card">
       <div className="section-header" style={{ marginBottom: '0.9rem' }}>
         <h2>Create Class</h2>
         <p>Maintain the class structure from pre-grade through Grade 9.</p>

@@ -4,6 +4,8 @@ import { ClassForm } from '@/components/class-form';
 import { Card } from '@/components/ui/card';
 import { getClasses } from '@/lib/data';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ClassesPage() {
   const classes = await getClasses();
 
