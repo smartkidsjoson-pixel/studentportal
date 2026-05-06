@@ -136,7 +136,7 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
 
   try {
     const admin = createAdminClient();
-    const { error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
       user_metadata: {
@@ -146,6 +146,15 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
       email_confirm: true,
     });
     if (error) throw error;
+
+    // Insert into profiles table
+    const supabase = await createClient();
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: data.user.id,
+      full_name: parsed.data.full_name,
+      role: parsed.data.role,
+    });
+    if (profileError) throw profileError;
   } catch (e) {
     return handleActionError(e);
   }
@@ -168,7 +177,7 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
 
   try {
     const admin = createAdminClient();
-    const { error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
       user_metadata: {
@@ -178,6 +187,15 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
       email_confirm: true,
     });
     if (error) throw error;
+
+    // Insert into profiles table
+    const supabase = await createClient();
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: data.user.id,
+      full_name: parsed.data.full_name,
+      role: parsed.data.role,
+    });
+    if (profileError) throw profileError;
   } catch (e) {
     return handleActionError(e);
   }
