@@ -1,4 +1,4 @@
-﻿export type UserRole = 'OWNER' | 'TEACHER';
+﻿export type UserRole = 'OWNER' | 'TEACHER' | 'ADMIN';
 export type StudentStatus = 'active' | 'transferred' | 'graduated';
 export type AcademicTerm = 'TERM_1' | 'TERM_2' | 'TERM_3';
 export type FeeState = 'paid' | 'partial' | 'unpaid';

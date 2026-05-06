@@ -13,12 +13,19 @@ type ActionState = {
   success?: string;
 };
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
+function parseInteger(value: FormDataEntryValue | null, defaultValue = 0): number {
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
 
-  return typeof error === 'string' ? error : 'An unexpected error occurred.';
+function parseFloatValue(value: FormDataEntryValue | null, defaultValue = 0): number {
+  const parsed = parseFloat(String(value ?? ''));
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+
+function handleActionError(error: unknown): ActionState {
+  console.error(error);
+  return { error: 'Failed' };
 }
 
 const loginSchema = z.object({
@@ -39,7 +46,6 @@ const assignTeacherClassSchema = z.object({
 });
 
 export async function loginAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const supabase = await createClient();
   const parsed = loginSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
@@ -49,18 +55,25 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
     return { error: 'Enter a valid email address and password.' };
   }
 
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-
-  if (error) {
-    return { error: error.message };
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
   }
 
   redirect('/dashboard');
 }
 
 export async function logoutAction() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (e) {
+    console.error(e);
+  }
+
   redirect('/login');
 }
 
@@ -77,14 +90,13 @@ export async function createStudentAction(_prevState: ActionState, formData: For
     };
 
     const { error } = await supabase.from('students').insert(payload);
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/students');
-    revalidatePath('/dashboard');
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/students');
+  revalidatePath('/dashboard');
   redirect('/students');
 }
 
@@ -96,17 +108,16 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
     const payload = {
       name: String(formData.get('name') ?? ''),
       section: String(formData.get('section') ?? '') || null,
-      level_order: Number(formData.get('level_order') ?? 0),
+      level_order: parseInteger(formData.get('level_order')),
     };
 
     const { error } = await supabase.from('classes').insert(payload);
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/classes');
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/classes');
   redirect('/classes');
 }
 
@@ -134,13 +145,12 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
       },
       email_confirm: true,
     });
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/teachers');
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/teachers');
   redirect('/teachers');
 }
 
@@ -156,19 +166,20 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
     return { error: 'Provide valid administrator details and a secure password.' };
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.createUser({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    user_metadata: {
-      full_name: parsed.data.full_name,
-      role: parsed.data.role,
-    },
-    email_confirm: true,
-  });
-
-  if (error) {
-    return { error: getErrorMessage(error) };
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.createUser({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      user_metadata: {
+        full_name: parsed.data.full_name,
+        role: parsed.data.role,
+      },
+      email_confirm: true,
+    });
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
   }
 
   return { success: 'Administrator account created successfully. You can now log in.' };
@@ -189,17 +200,19 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
     const supabase = await createClient();
     const { error } = await supabase
       .from('teacher_class_assignments')
-      .upsert({
-        teacher_id: parsed.data.teacher_id,
-        class_id: parsed.data.class_id,
-      }, { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' });
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/teachers');
+      .upsert(
+        {
+          teacher_id: parsed.data.teacher_id,
+          class_id: parsed.data.class_id,
+        },
+        { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' },
+      );
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/teachers');
   redirect('/teachers');
 }
 
@@ -210,20 +223,19 @@ export async function recordPaymentAction(_prevState: ActionState, formData: For
     const supabase = await createClient();
     const payload = {
       fee_ledger_id: String(formData.get('fee_ledger_id') ?? ''),
-      amount: Number(formData.get('amount') ?? 0),
+      amount: parseFloatValue(formData.get('amount')),
       payment_date: String(formData.get('payment_date') ?? new Date().toISOString().slice(0, 10)),
       payment_method: String(formData.get('payment_method') ?? 'cash'),
     };
 
     const { error } = await supabase.from('fee_payments').insert(payload);
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/fees');
-    revalidatePath('/dashboard');
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
   redirect('/fees');
 }
 
@@ -235,17 +247,16 @@ export async function createFeeLedgerAction(_prevState: ActionState, formData: F
     const payload = {
       student_id: String(formData.get('student_id') ?? ''),
       session_label: String(formData.get('session_label') ?? ''),
-      total_fee: Number(formData.get('total_fee') ?? 0),
+      total_fee: parseFloatValue(formData.get('total_fee')),
     };
 
     const { error } = await supabase.from('student_fee_ledgers').insert(payload);
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/fees');
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/fees');
   redirect('/fees');
 }
 
@@ -258,20 +269,19 @@ export async function upsertMarkAction(_prevState: ActionState, formData: FormDa
       student_id: String(formData.get('student_id') ?? ''),
       subject_id: String(formData.get('subject_id') ?? ''),
       term: String(formData.get('term') ?? 'TERM_1'),
-      score: Number(formData.get('score') ?? 0),
-      max_score: Number(formData.get('max_score') ?? 100),
+      score: parseInteger(formData.get('score')),
+      max_score: parseInteger(formData.get('max_score')),
     };
 
     const { error } = await supabase
       .from('marks')
       .upsert(payload, { onConflict: 'student_id,subject_id,term' });
-    if (error) throw new Error(error.message);
-
-    revalidatePath('/results');
-    revalidatePath('/dashboard');
+    if (error) throw error;
   } catch (e) {
-    return { error: getErrorMessage(e) };
+    return handleActionError(e);
   }
 
+  revalidatePath('/results');
+  revalidatePath('/dashboard');
   redirect('/results');
 }
