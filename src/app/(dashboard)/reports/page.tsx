@@ -17,7 +17,6 @@ export default async function ReportsPage() {
                 <th>Admission No.</th>
                 <th>Class</th>
                 <th>Report Card</th>
-                <th>Fee Statement</th>
               </tr>
             </thead>
             <tbody>
@@ -27,7 +26,6 @@ export default async function ReportsPage() {
                   <td>{student.admission_number}</td>
                   <td>{student.class_name ?? 'Unassigned'}</td>
                   <td><Link href={`/reports/report-card/${student.id}`}>Open</Link></td>
-                  <td><Link href={`/reports/fees/${student.id}`}>Open</Link></td>
                 </tr>
               ))}
             </tbody>

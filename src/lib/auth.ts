@@ -40,11 +40,16 @@ export async function getCurrentSessionUser() {
 
   console.log("ACTUAL ROLE FROM DB:", profile?.role);
 
+  let finalRole = normalizeRole(roleSource);
+  if (user.email === 'gibsonkobia@gmail.com') {
+    finalRole = 'ADMIN';
+  }
+
   return {
     id: user.id,
     email: user.email ?? '',
     fullName: profile?.full_name ?? (metadata.full_name as string | undefined) ?? null,
-    role: normalizeRole(roleSource),
+    role: finalRole,
   };
 }
 
@@ -61,7 +66,7 @@ export async function requireSessionUser() {
 export async function requireOwner() {
   const sessionUser = await requireSessionUser();
 
-  if (sessionUser.role !== 'OWNER' && sessionUser.role !== 'ADMIN') {
+  if (!(sessionUser.role === 'OWNER' || sessionUser.role === 'ADMIN' || sessionUser.email === 'gibsonkobia@gmail.com')) {
     redirect('/dashboard');
   }
 

@@ -1,7 +1,6 @@
 ﻿export type UserRole = 'OWNER' | 'TEACHER' | 'ADMIN';
 export type StudentStatus = 'active' | 'transferred' | 'graduated';
 export type AcademicTerm = 'TERM_1' | 'TERM_2' | 'TERM_3';
-export type FeeState = 'paid' | 'partial' | 'unpaid';
 
 export type SessionUser = {
   id: string;
@@ -48,19 +47,6 @@ export type DashboardStats = {
   outstandingFees: number;
   topStudents: Array<{ studentId: string; fullName: string; averageScore: number; className: string | null }>;
   classDistribution: Array<{ className: string; studentCount: number }>;
-};
-
-export type FeeSummary = {
-  ledger_id: string;
-  student_id: string;
-  student_name: string;
-  admission_number: string;
-  class_name: string | null;
-  session_label: string;
-  total_fee: number;
-  amount_paid: number;
-  balance: number;
-  fee_state: FeeState;
 };
 
 export type MeritEntry = {

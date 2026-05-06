@@ -234,50 +234,6 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
   redirect('/teachers');
 }
 
-export async function recordPaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSessionUser();
-
-  try {
-    const supabase = await createClient();
-    const payload = {
-      fee_ledger_id: String(formData.get('fee_ledger_id') ?? ''),
-      amount: parseFloatValue(formData.get('amount')),
-      payment_date: String(formData.get('payment_date') ?? new Date().toISOString().slice(0, 10)),
-      payment_method: String(formData.get('payment_method') ?? 'cash'),
-    };
-
-    const { error } = await supabase.from('fee_payments').insert(payload);
-    if (error) throw error;
-  } catch (e) {
-    return handleActionError(e);
-  }
-
-  revalidatePath('/fees');
-  revalidatePath('/dashboard');
-  redirect('/fees');
-}
-
-export async function createFeeLedgerAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  await requireOwner();
-
-  try {
-    const supabase = await createClient();
-    const payload = {
-      student_id: String(formData.get('student_id') ?? ''),
-      session_label: String(formData.get('session_label') ?? ''),
-      total_fee: parseFloatValue(formData.get('total_fee')),
-    };
-
-    const { error } = await supabase.from('student_fee_ledgers').insert(payload);
-    if (error) throw error;
-  } catch (e) {
-    return handleActionError(e);
-  }
-
-  revalidatePath('/fees');
-  redirect('/fees');
-}
-
 export async function upsertMarkAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireSessionUser();
 
