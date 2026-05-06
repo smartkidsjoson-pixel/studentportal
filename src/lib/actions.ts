@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { requireOwner, requireSessionUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 type ActionState = {
   error?: string;
@@ -15,6 +16,18 @@ type ActionState = {
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
+});
+
+const createTeacherSchema = z.object({
+  full_name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  role: z.enum(['OWNER', 'TEACHER']),
+});
+
+const assignTeacherClassSchema = z.object({
+  teacher_id: z.string().uuid(),
+  class_id: z.string().uuid(),
 });
 
 export async function loginAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -79,6 +92,65 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
 
   revalidatePath('/classes');
   return { success: 'Class created successfully.' };
+}
+
+export async function createTeacherAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireOwner();
+  const parsed = createTeacherSchema.safeParse({
+    full_name: formData.get('full_name'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    role: formData.get('role'),
+  });
+
+  if (!parsed.success) {
+    return { error: 'Provide valid staff details and a secure password.' };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.createUser({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    user_metadata: {
+      full_name: parsed.data.full_name,
+      role: parsed.data.role,
+    },
+    email_confirm: true,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/teachers');
+  return { success: 'Staff account created successfully.' };
+}
+
+export async function assignTeacherClassAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireOwner();
+  const parsed = assignTeacherClassSchema.safeParse({
+    teacher_id: formData.get('teacher_id'),
+    class_id: formData.get('class_id'),
+  });
+
+  if (!parsed.success) {
+    return { error: 'Select a valid teacher and class.' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('teacher_class_assignments')
+    .upsert({
+      teacher_id: parsed.data.teacher_id,
+      class_id: parsed.data.class_id,
+    }, { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/teachers');
+  return { success: 'Class assigned to staff successfully.' };
 }
 
 export async function recordPaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {

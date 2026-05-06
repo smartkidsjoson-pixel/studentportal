@@ -11,6 +11,8 @@ import type {
   SessionUser,
   StudentDirectoryItem,
   SubjectPerformance,
+  TeacherClassAssignment,
+  TeacherProfile,
 } from '@/lib/types';
 
 export async function getClasses(): Promise<ClassSummary[]> {
@@ -27,6 +29,43 @@ export async function getClasses(): Promise<ClassSummary[]> {
   }
 
   return data ?? [];
+}
+
+export async function getTeachers(): Promise<TeacherProfile[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .order('full_name', { ascending: true });
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+export async function getTeacherAssignments(): Promise<TeacherClassAssignment[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('teacher_class_assignments')
+    .select('id, teacher_id, class_id, class_name:classes(name)')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return (
+    data?.map((assignment: any) => ({
+      id: assignment.id,
+      teacher_id: assignment.teacher_id,
+      class_id: assignment.class_id,
+      class_name: assignment.class_name ?? 'Unknown',
+    })) ?? []
+  );
 }
 
 export async function getStudents(params?: { query?: string; classId?: string }): Promise<StudentDirectoryItem[]> {

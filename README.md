@@ -13,6 +13,7 @@ Production-ready school administration system built with `Next.js` App Router, `
 - Printable report card, fee statement, and class performance views
 - Audit logging for marks and fees changes
 - Row Level Security for role-based access
+- Owner-only teacher account creation and class assignment management
 
 ## Stack
 
@@ -92,6 +93,7 @@ npm run dev
 - Printable report card: `/reports/report-card/[studentId]`
 - Printable fee statement: `/reports/fees/[studentId]`
 - Class performance report: `/reports/class/[classId]`
+- Owner-only teacher management: `/teachers`
 - JSON report endpoints:
   - `/api/reports/report-card/[studentId]`
   - `/api/reports/fee-statement/[studentId]`

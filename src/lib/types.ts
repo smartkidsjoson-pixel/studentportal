@@ -10,6 +10,19 @@ export type SessionUser = {
   role: UserRole;
 };
 
+export type TeacherProfile = {
+  id: string;
+  full_name: string;
+  role: UserRole;
+};
+
+export type TeacherClassAssignment = {
+  id: string;
+  teacher_id: string;
+  class_id: string;
+  class_name: string;
+};
+
 export type ClassSummary = {
   id: string;
   name: string;
