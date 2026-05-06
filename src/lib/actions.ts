@@ -13,6 +13,14 @@ type ActionState = {
   success?: string;
 };
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === 'string' ? error : 'An unexpected error occurred.';
+}
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -74,7 +82,7 @@ export async function createStudentAction(_prevState: ActionState, formData: For
     revalidatePath('/students');
     revalidatePath('/dashboard');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/students');
@@ -96,7 +104,7 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
 
     revalidatePath('/classes');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/classes');
@@ -130,7 +138,7 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
 
     revalidatePath('/teachers');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/teachers');
@@ -160,7 +168,7 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
   });
 
   if (error) {
-    return { error: error.message };
+    return { error: getErrorMessage(error) };
   }
 
   return { success: 'Administrator account created successfully. You can now log in.' };
@@ -189,7 +197,7 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
 
     revalidatePath('/teachers');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/teachers');
@@ -213,7 +221,7 @@ export async function recordPaymentAction(_prevState: ActionState, formData: For
     revalidatePath('/fees');
     revalidatePath('/dashboard');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/fees');
@@ -235,7 +243,7 @@ export async function createFeeLedgerAction(_prevState: ActionState, formData: F
 
     revalidatePath('/fees');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/fees');
@@ -262,7 +270,7 @@ export async function upsertMarkAction(_prevState: ActionState, formData: FormDa
     revalidatePath('/results');
     revalidatePath('/dashboard');
   } catch (e) {
-    return { error: e.message };
+    return { error: getErrorMessage(e) };
   }
 
   redirect('/results');
