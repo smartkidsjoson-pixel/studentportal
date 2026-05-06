@@ -136,3 +136,108 @@ th { color: #475569; background: var(--surface-muted); font-weight: 700; }
   body { background: #fff; }
   .print-sheet { padding: 0; max-width: none; }
 }
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(320px, 1.5fr) minmax(320px, 1fr);
+  gap: 2rem;
+  align-items: center;
+  padding: 3rem;
+  background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.08), transparent 28%),
+    var(--background);
+}
+
+.login-hero {
+  padding: 3rem;
+  border-radius: 2rem;
+  background: linear-gradient(180deg, #eef2ff 0%, #ffffff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.login-hero h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
+  line-height: 1.05;
+  color: #0f172a;
+}
+
+.hero-copy-text {
+  max-width: 38rem;
+  color: #475569;
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+
+.brand-pill {
+  display: inline-flex;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+
+.eyebrow {
+  display: inline-flex;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #475569;
+  font-weight: 700;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.feature-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.9rem 1rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.auth-header h2 {
+  margin: 0.35rem 0 0;
+  font-size: 2rem;
+}
+
+.login-help {
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.login-help a {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+@media (max-width: 960px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+
+  .login-hero {
+    order: 2;
+    padding: 2rem;
+  }
+}

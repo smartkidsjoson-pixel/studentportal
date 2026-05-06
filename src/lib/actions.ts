@@ -126,6 +126,36 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
   return { success: 'Staff account created successfully.' };
 }
 
+export async function createInitialAdminAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = createTeacherSchema.safeParse({
+    full_name: formData.get('full_name'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    role: formData.get('role'),
+  });
+
+  if (!parsed.success) {
+    return { error: 'Provide valid administrator details and a secure password.' };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.createUser({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    user_metadata: {
+      full_name: parsed.data.full_name,
+      role: parsed.data.role,
+    },
+    email_confirm: true,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: 'Administrator account created successfully. You can now log in.' };
+}
+
 export async function assignTeacherClassAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
   const parsed = assignTeacherClassSchema.safeParse({

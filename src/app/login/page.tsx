@@ -2,16 +2,36 @@ import LoginForm from '@/components/auth/LoginForm';
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-2xl">
-        <div className="text-center">
-          <h1 className="text-4xl font-black tracking-tighter text-slate-900">SchoolFlow</h1>
-          <p className="mt-3 text-slate-500 font-medium">Administration Portal</p>
+    <div className="login-shell">
+      <section className="login-hero">
+        <span className="brand-pill">Elote School</span>
+        <h1>Secure school management for modern administrators.</h1>
+        <p className="hero-copy-text">
+          Manage attendance, fees, students, and report cards from one elegant portal built for school leaders.
+        </p>
+
+        <div className="feature-grid">
+          <span className="feature-chip">Student records</span>
+          <span className="feature-chip">Fees & payments</span>
+          <span className="feature-chip">Term reports</span>
         </div>
-        <div className="mt-10">
+      </section>
+
+      <section className="auth-card">
+        <div className="auth-header">
+          <p className="eyebrow">Administration Portal</p>
+          <h2>Sign in to continue</h2>
+          <p className="mt-3 text-slate-500">Use your school administrator credentials to access the dashboard.</p>
+        </div>
+
+        <div className="mt-8">
           <LoginForm />
         </div>
-      </div>
+
+        <p className="login-help">
+          First time here? <a href="/setup">Create the first administrator account</a>.
+        </p>
+      </section>
     </div>
   );
 }

@@ -63,6 +63,8 @@ NEXT_PUBLIC_APP_NAME=School Management System
 
 5. Create users in Supabase Auth and assign roles through `raw_user_meta_data` or update the `profiles` table after signup.
 
+5a. For the first administrator, use the app's initial setup page at `/setup` to create the first `OWNER` account.
+
 6. Start the development server:
 
 ```bash
