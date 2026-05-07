@@ -1,8 +1,9 @@
 import { Card } from '@/components/ui/card';
-import { TeacherForm } from '@/components/teachers/teacher-form';
 import { ClassAssignmentForm } from '@/components/teachers/class-assignment-form';
+import { TeacherForm } from '@/components/teachers/teacher-form';
 import { requireOwner } from '@/lib/auth';
 import { getClasses, getTeacherAssignments, getTeachers } from '@/lib/data';
+import { toggleTeacherStatusAction } from '@/lib/actions';
 
 export default async function TeachersPage() {
   await requireOwner();
@@ -20,14 +21,16 @@ export default async function TeachersPage() {
 
   return (
     <div className="grid">
-      <Card title="Staff Directory" description="Review teacher and owner accounts and their assigned classes.">
+      <Card title="Staff directory" description="Review teacher and owner accounts and assigned classes.">
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Role</th>
-                <th>Assigned Classes</th>
+                <th>Status</th>
+                <th>Assigned classes</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -35,7 +38,17 @@ export default async function TeachersPage() {
                 <tr key={teacher.id}>
                   <td>{teacher.full_name}</td>
                   <td>{teacher.role}</td>
+                  <td>{teacher.is_active ? 'Active' : 'Inactive'}</td>
                   <td>{(teacherAssignmentMap[teacher.id] ?? []).join(', ') || 'None'}</td>
+                  <td>
+                    <form action={toggleTeacherStatusAction}>
+                      <input type="hidden" name="teacher_id" value={teacher.id} />
+                      <input type="hidden" name="is_active" value={teacher.is_active ? 'false' : 'true'} />
+                      <button type="submit" className="secondary">
+                        {teacher.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </form>
+                  </td>
                 </tr>
               ))}
             </tbody>

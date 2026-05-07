@@ -4,22 +4,24 @@ import { createClient } from '@/lib/supabase/server';
 import type {
   ClassSummary,
   DashboardStats,
-  MeritEntry,
-  ReportCardData,
+  PromotionHistoryItem,
   SessionUser,
   StudentDirectoryItem,
-  SubjectPerformance,
   TeacherClassAssignment,
   TeacherProfile,
   UserRole,
 } from '@/lib/types';
 
 function normalizeRole(role: unknown): UserRole {
-  if (role === 'OWNER' || role === 'TEACHER' || role === 'ADMIN') {
+  if (role === 'OWNER' || role === 'TEACHER') {
     return role;
   }
 
   return 'TEACHER';
+}
+
+function sanitizeSearchQuery(value: string) {
+  return value.replace(/[^a-zA-Z0-9_\-@+ \u00C0-\u017F]/g, '').trim();
 }
 
 export async function getClasses(): Promise<ClassSummary[]> {
@@ -42,7 +44,8 @@ export async function getTeachers(): Promise<TeacherProfile[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role')
+    .select('id, full_name, role, is_active')
+    .in('role', ['OWNER', 'TEACHER'])
     .order('full_name', { ascending: true });
 
   if (error) {
@@ -82,9 +85,15 @@ export async function getTeacherAssignments(): Promise<TeacherClassAssignment[]>
   );
 }
 
-export async function getStudents(params?: { query?: string; classId?: string; page?: number; pageSize?: number }): Promise<StudentDirectoryItem[]> {
+export async function getStudents(params?: {
+  query?: string;
+  classId?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<StudentDirectoryItem[]> {
   const supabase = await createClient();
-  const query = params?.query?.trim();
+  const query = params?.query ? sanitizeSearchQuery(params.query) : undefined;
   const pageSize = params?.pageSize ?? 12;
   const page = params?.page && params.page > 0 ? params.page : 1;
   const from = (page - 1) * pageSize;
@@ -100,8 +109,12 @@ export async function getStudents(params?: { query?: string; classId?: string; p
     builder = builder.eq('class_id', params.classId);
   }
 
+  if (params?.status) {
+    builder = builder.eq('status', params.status);
+  }
+
   if (query) {
-    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%`);
+    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%,parent_name.ilike.%${query}%,parent_phone.ilike.%${query}%`);
   }
 
   const { data, error } = await builder;
@@ -114,9 +127,9 @@ export async function getStudents(params?: { query?: string; classId?: string; p
   return data ?? [];
 }
 
-export async function getStudentsCount(params?: { query?: string; classId?: string }): Promise<number> {
+export async function getStudentsCount(params?: { query?: string; classId?: string; status?: string }): Promise<number> {
   const supabase = await createClient();
-  const query = params?.query?.trim();
+  const query = params?.query ? sanitizeSearchQuery(params.query) : undefined;
 
   let builder = supabase
     .from('student_directory')
@@ -126,8 +139,12 @@ export async function getStudentsCount(params?: { query?: string; classId?: stri
     builder = builder.eq('class_id', params.classId);
   }
 
+  if (params?.status) {
+    builder = builder.eq('status', params.status);
+  }
+
   if (query) {
-    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%`);
+    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%,parent_name.ilike.%${query}%,parent_phone.ilike.%${query}%`);
   }
 
   const { count, error } = await builder;
@@ -156,57 +173,87 @@ export async function getStudentById(studentId: string): Promise<StudentDirector
   return data ?? null;
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+async function getTeacherClassIds(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data, error } = await supabase
+    .from('teacher_class_assignments')
+    .select('class_id');
+
+  if (error) {
+    console.error(error);
+    return [] as string[];
+  }
+
+  return (data ?? []).map((row: { class_id: string }) => row.class_id);
+}
+
+export async function getDashboardStats(user?: SessionUser): Promise<DashboardStats> {
   const supabase = await createClient();
-  const [studentsCount, classesCount, topStudents, classDistribution] = await Promise.all([
+  const ownerTotals = Promise.all([
+    supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'TEACHER'),
+    supabase.from('classes').select('id', { count: 'exact', head: true }),
+  ]);
+
+  const recentStudentsQuery = supabase
+    .from('student_directory')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (!user || user.role === 'OWNER') {
+    const [studentsCount, teachersCount, classesCount] = await ownerTotals;
+    const { data: recentStudents } = await recentStudentsQuery;
+
+    return {
+      totalStudents: studentsCount.count ?? 0,
+      totalTeachers: teachersCount.count ?? 0,
+      totalClasses: classesCount.count ?? 0,
+      recentStudents: recentStudents ?? [],
+    };
+  }
+
+  const teacherClassIds = await getTeacherClassIds(supabase, user.id);
+
+  const [studentCount, classCount] = await Promise.all([
     supabase
       .from('students')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'active'),
+      .eq('status', 'active')
+      .in('class_id', teacherClassIds),
     supabase
-      .from('classes')
-      .select('id', { count: 'exact', head: true }),
-    supabase
-      .from('overall_merit_list')
-      .select('*')
-      .limit(5),
-    supabase
-      .from('class_distribution')
-      .select('*')
-      .order('level_order', { ascending: true }),
+      .from('teacher_class_assignments')
+      .select('class_id', { count: 'exact', head: true })
+      .eq('teacher_id', user.id),
   ]);
 
+  const { data: recentStudents } = await supabase
+    .from('student_directory')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const { data: assignedClasses } = await supabase
+    .from('class_overview')
+    .select('*')
+    .in('id', teacherClassIds)
+    .order('level_order', { ascending: true });
+
   return {
-    totalStudents: studentsCount.count ?? 0,
-    totalClasses: classesCount.count ?? 0,
-    topStudents:
-      topStudents.data?.map((entry) => ({
-        studentId: entry.student_id,
-        fullName: entry.full_name,
-        averageScore: Number(entry.average_score ?? 0),
-        className: entry.class_name,
-      })) ?? [],
-    classDistribution:
-      classDistribution.data?.map((entry) => ({
-        className: entry.class_name,
-        studentCount: entry.student_count,
-      })) ?? [],
+    totalStudents: studentCount.count ?? 0,
+    totalTeachers: 0,
+    totalClasses: classCount.count ?? 0,
+    recentStudents: recentStudents ?? [],
+    assignedClasses: assignedClasses ?? [],
   };
 }
 
-export async function getMeritList(classId?: string, term?: string): Promise<MeritEntry[]> {
+export async function getPromotionHistory(studentId: string): Promise<PromotionHistoryItem[]> {
   const supabase = await createClient();
-  let builder = supabase.from('term_merit_list').select('*').order('position', { ascending: true }).limit(100);
-
-  if (classId) {
-    builder = builder.eq('class_id', classId);
-  }
-
-  if (term) {
-    builder = builder.eq('term', term);
-  }
-
-  const { data, error } = await builder;
+  const { data, error } = await supabase
+    .from('student_promotion_history')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('promoted_at', { ascending: false });
 
   if (error) {
     console.error(error);
@@ -216,19 +263,13 @@ export async function getMeritList(classId?: string, term?: string): Promise<Mer
   return data ?? [];
 }
 
-export async function getSubjectPerformance(classId?: string, term?: string): Promise<SubjectPerformance[]> {
+export async function getRecentPromotions(limit = 10) {
   const supabase = await createClient();
-  let builder = supabase.from('subject_performance_summary').select('*').order('average_score', { ascending: false }).limit(20);
-
-  if (classId) {
-    builder = builder.eq('class_id', classId);
-  }
-
-  if (term) {
-    builder = builder.eq('term', term);
-  }
-
-  const { data, error } = await builder;
+  const { data, error } = await supabase
+    .from('promotion_log_overview')
+    .select('*')
+    .order('promoted_at', { ascending: false })
+    .limit(limit);
 
   if (error) {
     console.error(error);
@@ -272,44 +313,6 @@ export async function getSessionUserProfile(): Promise<SessionUser | null> {
     email: user.email ?? '',
     fullName: profile?.full_name ?? (metadata.full_name as string | undefined) ?? null,
     role: finalRole,
-  };
-}
-
-export async function getReportCardData(studentId: string): Promise<ReportCardData> {
-  const supabase = await createClient();
-  const [{ data: student }, { data: marks }, { data: totals }] = await Promise.all([
-    supabase.from('student_directory').select('*').eq('id', studentId).single(),
-    supabase.from('academic_marks_view').select('*').eq('student_id', studentId).order('term').order('subject_name'),
-    supabase.from('student_term_totals').select('*').eq('student_id', studentId).order('term'),
-  ]);
-
-  if (!student) {
-    notFound();
-  }
-
-  return {
-    student: {
-      id: student.id,
-      full_name: student.full_name,
-      admission_number: student.admission_number,
-      class_name: student.class_name,
-      parent_contact: student.parent_contact,
-    },
-    marks:
-      marks?.map((entry) => ({
-        subject_name: entry.subject_name,
-        term: entry.term,
-        score: Number(entry.score),
-        max_score: Number(entry.max_score),
-      })) ?? [],
-    totals:
-      totals?.map((entry) => ({
-        term: entry.term,
-        total_score: Number(entry.total_score),
-        average_score: Number(entry.average_score),
-        position_in_class: entry.position_in_class,
-        overall_position: entry.overall_position,
-      })) ?? [],
   };
 }
 

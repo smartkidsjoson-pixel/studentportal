@@ -19,12 +19,12 @@ export function ClassForm() {
   return (
     <form ref={formRef} action={formAction} className="card">
       <div className="section-header" style={{ marginBottom: '0.9rem' }}>
-        <h2>Create Class</h2>
-        <p>Maintain the class structure from pre-grade through Grade 9.</p>
+        <h2>Create class</h2>
+        <p>Maintain your class structure from PP through Grade 9.</p>
       </div>
       <div className="form-grid">
         <div>
-          <label className="label" htmlFor="class-name">Class Name</label>
+          <label className="label" htmlFor="class-name">Class name</label>
           <input id="class-name" name="name" placeholder="Grade 3" required />
         </div>
         <div>
@@ -32,8 +32,12 @@ export function ClassForm() {
           <input id="section" name="section" placeholder="Blue" />
         </div>
         <div>
-          <label className="label" htmlFor="level-order">Level Order</label>
-          <input id="level-order" name="level_order" type="number" min="0" required />
+          <label className="label" htmlFor="capacity">Capacity</label>
+          <input id="capacity" name="capacity" type="number" min="0" placeholder="Optional" />
+        </div>
+        <div>
+          <label className="label" htmlFor="level-order">Class order</label>
+          <input id="level-order" name="level_order" type="number" min="0" defaultValue={0} required />
         </div>
       </div>
       <div className="form-actions">

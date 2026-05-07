@@ -4,7 +4,7 @@ import type { UserRole } from '@/lib/types';
 import { createClient } from '@/lib/supabase/server';
 
 function normalizeRole(role: unknown): UserRole {
-  if (role === 'OWNER' || role === 'TEACHER' || role === 'ADMIN') {
+  if (role === 'OWNER' || role === 'TEACHER') {
     return role;
   }
 

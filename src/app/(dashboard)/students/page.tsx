@@ -8,7 +8,7 @@ import { getClasses, getStudents, getStudentsCount } from '@/lib/data';
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; classId?: string; page?: string }>;
+  searchParams?: Promise<{ q?: string; classId?: string; status?: string; page?: string }>;
 }) {
   const params = (await searchParams) ?? {};
   const requestedPage = Number(params.page);
@@ -17,8 +17,18 @@ export default async function StudentsPage({
 
   const [classes, students, totalStudents] = await Promise.all([
     getClasses(),
-    getStudents({ query: params.q, classId: params.classId, page, pageSize }),
-    getStudentsCount({ query: params.q, classId: params.classId }),
+    getStudents({
+      query: params.q,
+      classId: params.classId,
+      status: params.status,
+      page,
+      pageSize,
+    }),
+    getStudentsCount({
+      query: params.q,
+      classId: params.classId,
+      status: params.status,
+    }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalStudents / pageSize));
@@ -29,16 +39,22 @@ export default async function StudentsPage({
     <div className="grid">
       <div className="card">
         <div className="section-header" style={{ marginBottom: '1rem' }}>
-          <h2>Student Directory</h2>
-          <p>Fast search by name or admission number with class-level filtering.</p>
+          <h2>Student directory</h2>
+          <p>Quickly search students by name, admission number or parent contact.</p>
         </div>
         <form className="inline-filters" action="/students">
-          <input name="q" defaultValue={params.q ?? ''} placeholder="Search by student name or admission number" />
+          <input name="q" defaultValue={params.q ?? ''} placeholder="Search student name, admission No. or parent phone" />
           <select name="classId" defaultValue={params.classId ?? ''}>
             <option value="">All classes</option>
             {classes.map((schoolClass) => (
               <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</option>
             ))}
+          </select>
+          <select name="status" defaultValue={params.status ?? ''}>
+            <option value="">All status</option>
+            <option value="active">Active</option>
+            <option value="transferred">Transferred</option>
+            <option value="graduated">Graduated</option>
           </select>
           <button type="submit">Search</button>
         </form>
@@ -46,7 +62,7 @@ export default async function StudentsPage({
         {students.length === 0 ? (
           <EmptyState
             title="No students found"
-            description={params.q ? 'Try another search term or clear the filters.' : 'Register students to see them listed here.'}
+            description={params.q || params.classId || params.status ? 'Try another filter or clear the search.' : 'Register students to populate the directory.'}
             href="/students"
             ctaLabel="Register student"
           />
@@ -59,7 +75,7 @@ export default async function StudentsPage({
                     <th>Name</th>
                     <th>Admission No.</th>
                     <th>Class</th>
-                    <th>Parent Contact</th>
+                    <th>Parent</th>
                     <th>Status</th>
                     <th>Profile</th>
                   </tr>
@@ -70,10 +86,10 @@ export default async function StudentsPage({
                       <td>{student.full_name}</td>
                       <td>{student.admission_number}</td>
                       <td>{student.class_name ?? 'Unassigned'}</td>
-                      <td>{student.parent_contact ?? 'N/A'}</td>
+                      <td>{student.parent_name ?? student.parent_phone ?? 'N/A'}</td>
                       <td><StatusPill value={student.status} /></td>
                       <td>
-                        <Link href={`/students/${student.id}`}>View profile</Link>
+                        <Link href={`/students/${student.id}`}>View</Link>
                       </td>
                     </tr>
                   ))}
@@ -82,14 +98,14 @@ export default async function StudentsPage({
             </div>
             <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
               {page > 1 ? (
-                <Link href={`/students?q=${params.q ?? ''}&classId=${params.classId ?? ''}&page=${prevPage}`} className="secondary">
+                <Link href={`/students?q=${params.q ?? ''}&classId=${params.classId ?? ''}&status=${params.status ?? ''}&page=${prevPage}`} className="secondary">
                   Previous
                 </Link>
               ) : (
                 <span className="disabled-link">Previous</span>
               )}
               {page < totalPages ? (
-                <Link href={`/students?q=${params.q ?? ''}&classId=${params.classId ?? ''}&page=${nextPage}`} className="secondary">
+                <Link href={`/students?q=${params.q ?? ''}&classId=${params.classId ?? ''}&status=${params.status ?? ''}&page=${nextPage}`} className="secondary">
                   Next
                 </Link>
               ) : (

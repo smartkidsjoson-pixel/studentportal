@@ -6,27 +6,36 @@ import { usePathname } from 'next/navigation';
 import { logoutAction } from '@/lib/actions';
 import { cn } from '@/lib/utils';
 
-const navItems = [
+const commonItems = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/students', label: 'Students' },
-  { href: '/teachers', label: 'Teachers' },
   { href: '/classes', label: 'Classes' },
-  { href: '/results', label: 'Results' },
-  { href: '/reports', label: 'Reports' },
 ];
 
-export function Sidebar({ schoolName }: { schoolName: string }) {
+const ownerItems = [
+  { href: '/teachers', label: 'Teachers' },
+  { href: '/promotions', label: 'Promotions' },
+];
+
+export function Sidebar({ schoolName, userRole }: { schoolName: string; userRole: string }) {
   const pathname = usePathname();
 
   return (
     <aside className="sidebar">
       <h1>{schoolName}</h1>
       <nav>
-        {navItems.map((item) => (
+        {commonItems.map((item) => (
           <Link key={item.href} href={item.href} className={cn(pathname === item.href && 'active')}>
             {item.label}
           </Link>
         ))}
+        {userRole === 'OWNER'
+          ? ownerItems.map((item) => (
+              <Link key={item.href} href={item.href} className={cn(pathname === item.href && 'active')}>
+                {item.label}
+              </Link>
+            ))
+          : null}
       </nav>
       <form action={logoutAction} style={{ marginTop: '1.5rem' }}>
         <button type="submit" className="secondary" style={{ width: '100%' }}>

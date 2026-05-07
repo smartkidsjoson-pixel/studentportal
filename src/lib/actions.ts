@@ -13,11 +13,6 @@ type ActionState = {
   success?: string;
 };
 
-function parseInteger(value: FormDataEntryValue | null, defaultValue = 0): number {
-  const parsed = Number(value);
-  return Number.isNaN(parsed) ? defaultValue : parsed;
-}
-
 function handleActionError(error: unknown): ActionState {
   console.error(error);
 
@@ -52,12 +47,44 @@ const loginSchema = z.object({
 const createStudentSchema = z.object({
   full_name: z.string().min(2, 'Full name is required'),
   class_id: z.string().uuid('Please select a valid class'),
-  parent_contact: z.string().optional(),
+  parent_name: z.string().optional(),
+  parent_phone: z.string().optional(),
+  alt_phone: z.string().optional(),
+  home_address: z.string().optional(),
+  notes: z.string().optional(),
+  gender: z.enum(['male', 'female', 'other']).optional(),
+  date_of_birth: z.preprocess((value) => {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+  }, z.date().optional()),
+  date_joined: z.preprocess((value) => {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+  }, z.date()),
   status: z.enum(['active', 'transferred', 'graduated']).default('active'),
 });
 
 const updateStudentSchema = createStudentSchema.extend({
   student_id: z.string().uuid('Invalid student selected'),
+});
+
+const createClassSchema = z.object({
+  name: z.string().min(2, 'Class name is required'),
+  section: z.string().optional(),
+  capacity: z.preprocess((value) => {
+    const num = Number(value);
+    return Number.isNaN(num) ? null : num;
+  }, z.number().int().positive().optional()),
+  level_order: z.preprocess((value) => {
+    const num = Number(value);
+    return Number.isNaN(num) ? 0 : num;
+  }, z.number().int().nonnegative()),
 });
 
 const createTeacherSchema = z.object({
@@ -72,12 +99,15 @@ const assignTeacherClassSchema = z.object({
   class_id: z.string().uuid(),
 });
 
-const upsertMarkSchema = z.object({
-  student_id: z.string().uuid('Invalid student'),
-  subject_id: z.string().uuid('Invalid subject'),
-  term: z.enum(['TERM_1', 'TERM_2', 'TERM_3']),
-  score: z.number().int().min(0).max(100, 'Score must be between 0 and 100'),
-  max_score: z.number().int().min(1).default(100),
+const toggleTeacherStatusSchema = z.object({
+  teacher_id: z.string().uuid(),
+  is_active: z.string().transform((value) => value === 'true'),
+});
+
+const promoteStudentsSchema = z.object({
+  current_class_id: z.string().uuid(),
+  target_class_id: z.string().uuid(),
+  student_ids: z.array(z.string().uuid()).min(1, 'Select at least one student to promote'),
 });
 
 export async function loginAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -115,11 +145,17 @@ export async function logoutAction() {
 export async function createStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const sessionUser = await requireSessionUser();
 
-  const parentContact = String(formData.get('parent_contact') ?? '').trim();
   const parsed = createStudentSchema.safeParse({
     full_name: String(formData.get('full_name') ?? '').trim(),
     class_id: String(formData.get('class_id') ?? ''),
-    parent_contact: parentContact || undefined,
+    parent_name: String(formData.get('parent_name') ?? '').trim() || undefined,
+    parent_phone: String(formData.get('parent_phone') ?? '').trim() || undefined,
+    alt_phone: String(formData.get('alt_phone') ?? '').trim() || undefined,
+    home_address: String(formData.get('home_address') ?? '').trim() || undefined,
+    notes: String(formData.get('notes') ?? '').trim() || undefined,
+    gender: (String(formData.get('gender') ?? '') as 'male' | 'female' | 'other') || undefined,
+    date_of_birth: formData.get('date_of_birth'),
+    date_joined: formData.get('date_joined'),
     status: String(formData.get('status') ?? 'active'),
   });
 
@@ -149,7 +185,14 @@ export async function createStudentAction(_prevState: ActionState, formData: For
     const payload = {
       full_name: parsed.data.full_name,
       class_id: parsed.data.class_id,
-      parent_contact: parsed.data.parent_contact ?? null,
+      parent_name: parsed.data.parent_name ?? null,
+      parent_phone: parsed.data.parent_phone ?? null,
+      alt_phone: parsed.data.alt_phone ?? null,
+      home_address: parsed.data.home_address ?? null,
+      notes: parsed.data.notes ?? null,
+      gender: parsed.data.gender ?? null,
+      date_of_birth: parsed.data.date_of_birth ?? null,
+      date_joined: parsed.data.date_joined,
       status: parsed.data.status,
     };
 
@@ -167,12 +210,18 @@ export async function createStudentAction(_prevState: ActionState, formData: For
 export async function updateStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const sessionUser = await requireSessionUser();
 
-  const parentContact = String(formData.get('parent_contact') ?? '').trim();
   const parsed = updateStudentSchema.safeParse({
     student_id: String(formData.get('student_id') ?? ''),
     full_name: String(formData.get('full_name') ?? '').trim(),
     class_id: String(formData.get('class_id') ?? ''),
-    parent_contact: parentContact || undefined,
+    parent_name: String(formData.get('parent_name') ?? '').trim() || undefined,
+    parent_phone: String(formData.get('parent_phone') ?? '').trim() || undefined,
+    alt_phone: String(formData.get('alt_phone') ?? '').trim() || undefined,
+    home_address: String(formData.get('home_address') ?? '').trim() || undefined,
+    notes: String(formData.get('notes') ?? '').trim() || undefined,
+    gender: (String(formData.get('gender') ?? '') as 'male' | 'female' | 'other') || undefined,
+    date_of_birth: formData.get('date_of_birth'),
+    date_joined: formData.get('date_joined'),
     status: String(formData.get('status') ?? 'active'),
   });
 
@@ -213,12 +262,22 @@ export async function updateStudentAction(_prevState: ActionState, formData: For
       }
     }
 
-    const { error } = await supabase.from('students').update({
-      full_name: parsed.data.full_name,
-      class_id: parsed.data.class_id,
-      parent_contact: parsed.data.parent_contact ?? null,
-      status: parsed.data.status,
-    }).eq('id', parsed.data.student_id);
+    const { error } = await supabase
+      .from('students')
+      .update({
+        full_name: parsed.data.full_name,
+        class_id: parsed.data.class_id,
+        parent_name: parsed.data.parent_name ?? null,
+        parent_phone: parsed.data.parent_phone ?? null,
+        alt_phone: parsed.data.alt_phone ?? null,
+        home_address: parsed.data.home_address ?? null,
+        notes: parsed.data.notes ?? null,
+        gender: parsed.data.gender ?? null,
+        date_of_birth: parsed.data.date_of_birth ?? null,
+        date_joined: parsed.data.date_joined,
+        status: parsed.data.status,
+      })
+      .eq('id', parsed.data.student_id);
 
     if (error) throw error;
   } catch (e) {
@@ -233,21 +292,31 @@ export async function updateStudentAction(_prevState: ActionState, formData: For
 export async function createClassAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
 
+  const parsed = createClassSchema.safeParse({
+    name: String(formData.get('name') ?? '').trim(),
+    section: String(formData.get('section') ?? '').trim() || undefined,
+    capacity: formData.get('capacity'),
+    level_order: formData.get('level_order'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid class details.' };
+  }
+
   try {
     const supabase = await createClient();
-    const payload = {
-      name: String(formData.get('name') ?? ''),
-      section: String(formData.get('section') ?? '') || null,
-      level_order: parseInteger(formData.get('level_order')),
-    };
-
-    const { error } = await supabase.from('classes').insert(payload);
+    const { error } = await supabase.from('classes').insert({
+      name: parsed.data.name,
+      section: parsed.data.section ?? null,
+      capacity: parsed.data.capacity ?? null,
+      level_order: parsed.data.level_order,
+    });
     if (error) throw error;
   } catch (e) {
     return handleActionError(e);
   }
 
-  revalidatePath('/classes', 'layout');
+  revalidatePath('/classes');
   redirect('/classes');
 }
 
@@ -277,12 +346,12 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
     });
     if (error) throw error;
 
-    // Insert into profiles table
     const supabase = await createClient();
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
       role: parsed.data.role,
+      is_active: true,
     });
     if (profileError) throw profileError;
   } catch (e) {
@@ -318,12 +387,12 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
     });
     if (error) throw error;
 
-    // Insert into profiles table
     const supabase = await createClient();
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
       role: parsed.data.role,
+      is_active: true,
     });
     if (profileError) throw profileError;
   } catch (e) {
@@ -364,68 +433,83 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
   redirect('/teachers');
 }
 
-export async function upsertMarkAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const sessionUser = await requireSessionUser();
-
-  const parsed = upsertMarkSchema.safeParse({
-    student_id: String(formData.get('student_id') ?? ''),
-    subject_id: String(formData.get('subject_id') ?? ''),
-    term: String(formData.get('term') ?? 'TERM_1'),
-    score: parseInteger(formData.get('score')),
-    max_score: parseInteger(formData.get('max_score')),
+export async function toggleTeacherStatusAction(formData: FormData): Promise<void> {
+  await requireOwner();
+  const parsed = toggleTeacherStatusSchema.safeParse({
+    teacher_id: formData.get('teacher_id'),
+    is_active: formData.get('is_active'),
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.errors[0]?.message ?? 'Provide valid marks details.' };
+    throw new Error('Selected teacher record is invalid.');
   }
 
-  try {
-    const supabase = await createClient();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('profiles')
+    .update({ is_active: parsed.data.is_active })
+    .eq('id', parsed.data.teacher_id);
 
-    if (sessionUser.role === 'TEACHER') {
-      const { data: student, error: studentError } = await supabase
-        .from('students')
-        .select('class_id')
-        .eq('id', parsed.data.student_id)
-        .single();
-
-      if (studentError) throw studentError;
-      if (!student?.class_id) {
-        return { error: 'You are not allowed to enter marks for this student.' };
-      }
-
-      const { data: assignment, error: assignmentError } = await supabase
-        .from('teacher_class_assignments')
-        .select('id')
-        .eq('teacher_id', sessionUser.id)
-        .eq('class_id', student.class_id)
-        .single();
-
-      if (assignmentError && assignmentError.message !== 'Results contain 0 rows') {
-        throw assignmentError;
-      }
-      if (!assignment) {
-        return { error: 'You are not allowed to enter marks for this student.' };
-      }
-    }
-
-    const payload = {
-      student_id: parsed.data.student_id,
-      subject_id: parsed.data.subject_id,
-      term: parsed.data.term,
-      score: parsed.data.score,
-      max_score: parsed.data.max_score,
-    };
-
-    const { error } = await supabase
-      .from('marks')
-      .upsert(payload, { onConflict: 'student_id,subject_id,term' });
-    if (error) throw error;
-  } catch (e) {
-    return handleActionError(e);
+  if (error) {
+    throw error;
   }
 
-  revalidatePath('/results');
-  revalidatePath('/dashboard');
-  redirect('/results');
+  revalidatePath('/teachers');
+  redirect('/teachers');
+}
+
+export async function promoteStudentsAction(formData: FormData): Promise<void> {
+  await requireOwner();
+
+  const studentIds = formData.getAll('student_ids').map((value) => String(value));
+  const parsed = promoteStudentsSchema.safeParse({
+    current_class_id: formData.get('current_class_id'),
+    target_class_id: formData.get('target_class_id'),
+    student_ids: studentIds,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.errors[0]?.message ?? 'Provide valid promotion details.');
+  }
+
+  if (parsed.data.current_class_id === parsed.data.target_class_id) {
+    throw new Error('Choose a different target class for promotion.');
+  }
+
+  const supabase = await createClient();
+
+  const { data: students, error: studentError } = await supabase
+    .from('students')
+    .select('id')
+    .in('id', parsed.data.student_ids)
+    .eq('class_id', parsed.data.current_class_id);
+
+  if (studentError) throw studentError;
+  if (!students || students.length !== parsed.data.student_ids.length) {
+    throw new Error('One or more selected students are not eligible for this promotion.');
+  }
+
+  const { error: updateError } = await supabase
+    .from('students')
+    .update({ class_id: parsed.data.target_class_id })
+    .in('id', parsed.data.student_ids);
+
+  if (updateError) throw updateError;
+
+  const sessionUser = await requireSessionUser();
+  const payloads = parsed.data.student_ids.map((studentId) => ({
+    student_id: studentId,
+    from_class_id: parsed.data.current_class_id,
+    to_class_id: parsed.data.target_class_id,
+    promoted_by: sessionUser.id,
+    promoted_at: new Date().toISOString(),
+    notes: null,
+  }));
+
+  const { error: promotionError } = await supabase.from('promotion_logs').insert(payloads);
+  if (promotionError) throw promotionError;
+
+  revalidatePath('/students');
+  revalidatePath('/promotions');
+  redirect('/promotions');
 }

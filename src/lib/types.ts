@@ -1,6 +1,6 @@
-﻿export type UserRole = 'OWNER' | 'TEACHER' | 'ADMIN';
+﻿export type UserRole = 'OWNER' | 'TEACHER';
 export type StudentStatus = 'active' | 'transferred' | 'graduated';
-export type AcademicTerm = 'TERM_1' | 'TERM_2' | 'TERM_3';
+export type StudentGender = 'male' | 'female' | 'other';
 
 export type SessionUser = {
   id: string;
@@ -13,6 +13,7 @@ export type TeacherProfile = {
   id: string;
   full_name: string;
   role: UserRole;
+  is_active: boolean;
 };
 
 export type TeacherClassAssignment = {
@@ -27,6 +28,7 @@ export type ClassSummary = {
   name: string;
   section: string | null;
   level_order: number;
+  capacity: number | null;
   teacher_count?: number;
   student_count?: number;
 };
@@ -35,54 +37,34 @@ export type StudentDirectoryItem = {
   id: string;
   full_name: string;
   admission_number: string;
-  parent_contact: string | null;
+  gender: StudentGender | null;
+  date_of_birth: string | null;
+  parent_name: string | null;
+  parent_phone: string | null;
+  alt_phone: string | null;
+  home_address: string | null;
   status: StudentStatus;
+  date_joined: string | null;
+  notes: string | null;
+  profile_photo_url: string | null;
   class_name: string | null;
   class_id: string | null;
+  created_at: string | null;
 };
 
 export type DashboardStats = {
   totalStudents: number;
+  totalTeachers: number;
   totalClasses: number;
-  topStudents: Array<{ studentId: string; fullName: string; averageScore: number; className: string | null }>;
-  classDistribution: Array<{ className: string; studentCount: number }>;
+  recentStudents: StudentDirectoryItem[];
+  assignedClasses?: Array<{ id: string; name: string; studentCount: number }>;
 };
 
-export type MeritEntry = {
-  student_id: string;
-  full_name: string;
-  admission_number: string;
-  class_name: string | null;
-  total_score: number;
-  average_score: number;
-  position: number;
-};
-
-export type SubjectPerformance = {
-  subject_id: string;
-  subject_name: string;
-  average_score: number;
-};
-
-export type ReportCardData = {
-  student: {
-    id: string;
-    full_name: string;
-    admission_number: string;
-    class_name: string | null;
-    parent_contact: string | null;
-  };
-  marks: Array<{
-    subject_name: string;
-    term: AcademicTerm;
-    score: number;
-    max_score: number;
-  }>;
-  totals: Array<{
-    term: AcademicTerm;
-    total_score: number;
-    average_score: number;
-    position_in_class: number;
-    overall_position: number;
-  }>;
+export type PromotionHistoryItem = {
+  id: string;
+  from_class_name: string | null;
+  to_class_name: string | null;
+  promoted_by: string | null;
+  promoted_at: string;
+  notes: string | null;
 };

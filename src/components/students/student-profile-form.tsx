@@ -15,14 +15,14 @@ export function StudentProfileForm({ student, classes }: { student: StudentDirec
     <form ref={formRef} action={formAction} className="card">
       <div className="section-header" style={{ marginBottom: '0.9rem' }}>
         <h2>Edit student record</h2>
-        <p>Update student status, class, and parent contact data.</p>
+        <p>Update student details, guardian information and current status.</p>
       </div>
 
       <input type="hidden" name="student_id" value={student.id} />
 
       <div className="form-grid">
         <div>
-          <label className="label" htmlFor="student-name">Full Name</label>
+          <label className="label" htmlFor="student-name">Full name</label>
           <input id="student-name" name="full_name" defaultValue={student.full_name} required />
         </div>
         <div>
@@ -35,8 +35,41 @@ export function StudentProfileForm({ student, classes }: { student: StudentDirec
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="parent-contact">Parent Contact</label>
-          <input id="parent-contact" name="parent_contact" defaultValue={student.parent_contact ?? ''} />
+          <label className="label" htmlFor="gender">Gender</label>
+          <select id="gender" name="gender" defaultValue={student.gender ?? ''}>
+            <option value="">Select gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="date-of-birth">Date of birth</label>
+          <input id="date-of-birth" name="date_of_birth" type="date" defaultValue={student.date_of_birth ?? ''} />
+        </div>
+        <div>
+          <label className="label" htmlFor="parent-name">Parent / guardian</label>
+          <input id="parent-name" name="parent_name" defaultValue={student.parent_name ?? ''} />
+        </div>
+        <div>
+          <label className="label" htmlFor="parent-phone">Parent phone</label>
+          <input id="parent-phone" name="parent_phone" type="tel" defaultValue={student.parent_phone ?? ''} />
+        </div>
+        <div>
+          <label className="label" htmlFor="alt-phone">Alternative phone</label>
+          <input id="alt-phone" name="alt_phone" type="tel" defaultValue={student.alt_phone ?? ''} />
+        </div>
+        <div>
+          <label className="label" htmlFor="home-address">Home address</label>
+          <input id="home-address" name="home_address" defaultValue={student.home_address ?? ''} />
+        </div>
+        <div>
+          <label className="label" htmlFor="date-joined">Date joined</label>
+          <input id="date-joined" name="date_joined" type="date" defaultValue={student.date_joined ?? ''} required />
+        </div>
+        <div className="wide">
+          <label className="label" htmlFor="notes">Notes</label>
+          <textarea id="notes" name="notes" rows={4} defaultValue={student.notes ?? ''} />
         </div>
         <div>
           <label className="label" htmlFor="student-status">Status</label>

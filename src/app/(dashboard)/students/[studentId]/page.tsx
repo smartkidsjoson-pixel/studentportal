@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { getClasses, getStudentById } from '@/lib/data';
+import { getClasses, getPromotionHistory, getStudentById } from '@/lib/data';
 import { StudentProfileForm } from '@/components/students/student-profile-form';
+import { EmptyState } from '@/components/ui/empty-state';
 import { StatusPill } from '@/components/ui/status-pill';
 
 export default async function StudentProfilePage({ params }: { params: { studentId: string } }) {
-  const [student, classes] = await Promise.all([
+  const [student, classes, promotionHistory] = await Promise.all([
     getStudentById(params.studentId),
     getClasses(),
+    getPromotionHistory(params.studentId),
   ]);
 
   if (!student) {
@@ -20,7 +22,7 @@ export default async function StudentProfilePage({ params }: { params: { student
       <div className="card">
         <div className="section-header" style={{ marginBottom: '1rem' }}>
           <h2>Student profile</h2>
-          <p>Review details and update the student record safely.</p>
+          <p>View student details, guardian contacts and promotion history.</p>
         </div>
         <div className="table-wrap">
           <table>
@@ -38,12 +40,40 @@ export default async function StudentProfilePage({ params }: { params: { student
                 <td>{student.class_name ?? 'Unassigned'}</td>
               </tr>
               <tr>
-                <th>Parent Contact</th>
-                <td>{student.parent_contact ?? 'N/A'}</td>
+                <th>Gender</th>
+                <td>{student.gender ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1) : 'Not set'}</td>
+              </tr>
+              <tr>
+                <th>Date of birth</th>
+                <td>{student.date_of_birth ?? 'Not set'}</td>
+              </tr>
+              <tr>
+                <th>Date joined</th>
+                <td>{student.date_joined ?? 'Not set'}</td>
+              </tr>
+              <tr>
+                <th>Parent / guardian</th>
+                <td>{student.parent_name ?? 'N/A'}</td>
+              </tr>
+              <tr>
+                <th>Parent phone</th>
+                <td>{student.parent_phone ?? 'N/A'}</td>
+              </tr>
+              <tr>
+                <th>Alternative phone</th>
+                <td>{student.alt_phone ?? 'N/A'}</td>
+              </tr>
+              <tr>
+                <th>Address</th>
+                <td>{student.home_address ?? 'N/A'}</td>
               </tr>
               <tr>
                 <th>Status</th>
                 <td><StatusPill value={student.status} /></td>
+              </tr>
+              <tr>
+                <th>Notes</th>
+                <td>{student.notes ?? 'No additional notes'}</td>
               </tr>
             </tbody>
           </table>
@@ -54,7 +84,45 @@ export default async function StudentProfilePage({ params }: { params: { student
           </Link>
         </div>
       </div>
-      <StudentProfileForm student={student} classes={classes} />
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: '1rem' }}>
+          <h2>Student record</h2>
+          <p>Edit the student details or update transfer and graduation status.</p>
+        </div>
+        <StudentProfileForm student={student} classes={classes} />
+      </div>
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: '1rem' }}>
+          <h2>Promotion history</h2>
+          <p>Track class changes and promotions for this student.</p>
+        </div>
+        {promotionHistory.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {promotionHistory.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{new Date(entry.promoted_at).toLocaleDateString()}</td>
+                    <td>{entry.from_class_name ?? 'Unknown'}</td>
+                    <td>{entry.to_class_name ?? 'Unknown'}</td>
+                    <td>{entry.promoted_by ?? 'System'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState title="No promotion history" description="This student has not been moved between classes yet." />
+        )}
+      </div>
     </div>
   );
 }
