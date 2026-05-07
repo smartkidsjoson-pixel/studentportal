@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 import { logoutAction } from '@/lib/actions';
@@ -22,6 +23,9 @@ export function Sidebar({ schoolName, userRole }: { schoolName: string; userRole
 
   return (
     <aside className="sidebar">
+      <div className="logo-container">
+        <Image src="/logos/IMG-20260506-WA0004(1).jpg" alt={schoolName} width={150} height={100} />
+      </div>
       <h1>{schoolName}</h1>
       <nav>
         {commonItems.map((item) => (

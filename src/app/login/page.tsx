@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import LoginForm from '@/components/auth/LoginForm';
 
 export default function LoginPage() {
@@ -6,11 +7,17 @@ export default function LoginPage() {
     <div className="login-shell">
       <section className="login-hero">
         <div>
+          <Image src="/logos/IMG-20260506-WA0004(1).jpg" alt="School Logo" width={150} height={100} />
           <p className="brand-pill">CBC School Portal</p>
-          <h1>Secure access for school owners and teachers.</h1>
+          <h1>Secure school access for owners and teachers.</h1>
           <p className="hero-copy-text">
-            Use a modern, minimal portal for student records, class assignments and promotion planning.
+            Sign in to manage learner records, class assignments and promotions with a calm, dependable interface.
           </p>
+          <ul className="login-list">
+            <li>Role-based teacher access</li>
+            <li>Protected student records</li>
+            <li>Fast class and promotion workflows</li>
+          </ul>
         </div>
       </section>
 

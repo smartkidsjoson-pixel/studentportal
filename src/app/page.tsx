@@ -6,33 +6,38 @@ export default function HomePage() {
       <section className="landing-hero">
         <div className="hero-copy">
           <span className="brand-pill">CBC School Portal</span>
-          <h1>Clean school records for every Kenyan classroom.</h1>
+          <h1>Simple, secure school management for Kenyan classrooms.</h1>
           <p className="hero-copy-text">
-            Manage students, classes, teachers and promotions with a secure, minimal portal built for everyday school operations.
+            Keep student records, teacher assignments and class promotions clean, fast and organised with a practical portal built for real schools.
           </p>
           <div className="hero-actions">
             <Link href="/login">Sign in</Link>
             <Link href="/setup" className="secondary">Set up school</Link>
           </div>
+          <ul className="hero-badges">
+            <li>Owner/Teacher role access</li>
+            <li>Class-based student filtering</li>
+            <li>Promotion workflow with history</li>
+          </ul>
         </div>
 
         <div className="hero-panel">
           <div>
-            <h2>Fast, secure school management.</h2>
-            <p>One place for clean student registration, teacher assignments and class promotion planning.</p>
+            <h2>A polished portal for everyday school operations.</h2>
+            <p>Built for administrators and teachers who need a fast, dependable system for student and class management.</p>
           </div>
           <dl className="feature-list">
             <div>
               <dt>Student directory</dt>
-              <dd>Search names, admission numbers and parent contacts instantly.</dd>
+              <dd>Search by name, admission number or guardian phone instantly.</dd>
             </div>
             <div>
-              <dt>Class control</dt>
-              <dd>Maintain class structure and assign teachers to the right groups.</dd>
+              <dt>Class management</dt>
+              <dd>Track class counts, assign teachers and keep class structures aligned.</dd>
             </div>
             <div>
-              <dt>Promotion workflow</dt>
-              <dd>Move students to next classes with history and audit-safe updates.</dd>
+              <dt>Promotion planning</dt>
+              <dd>Move learners cleanly to the next class with an audit trail.</dd>
             </div>
           </dl>
         </div>
@@ -40,21 +45,21 @@ export default function HomePage() {
 
       <section className="landing-features">
         <div>
-          <h2>Designed for school owners and teachers.</h2>
-          <p>Simple navigation, role-aware access and a polished interface for everyday school administration.</p>
+          <h2>Everything you need, nothing you don’t.</h2>
+          <p>Minimal design, thoughtful access control and practical tools for school staff.</p>
         </div>
         <div className="feature-grid">
           <div className="feature-card">
-            <h3>Owner access</h3>
-            <p>Full control over students, teachers and class promotion workflows.</p>
+            <h3>Admin control</h3>
+            <p>Owner access to classes, teachers, student records and promotion workflows.</p>
           </div>
           <div className="feature-card">
-            <h3>Teacher access</h3>
-            <p>Only assigned classes and students appear to classroom staff.</p>
+            <h3>Teacher focus</h3>
+            <p>Teachers only see their assigned classes and the students they teach.</p>
           </div>
           <div className="feature-card">
-            <h3>Reliable records</h3>
-            <p>Admission numbers, status tracking and promotion history are stored safely.</p>
+            <h3>Clean records</h3>
+            <p>Guardian details, transfer status and admission history all in one place.</p>
           </div>
         </div>
       </section>
