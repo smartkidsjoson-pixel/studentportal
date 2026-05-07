@@ -15,7 +15,6 @@ export default async function ClassesPage() {
             <thead>
               <tr>
                 <th>Class</th>
-                <th>Section</th>
                 <th>Capacity</th>
                 <th>Students</th>
                 <th>Teachers</th>
@@ -25,7 +24,6 @@ export default async function ClassesPage() {
               {classes.map((schoolClass) => (
                 <tr key={schoolClass.id}>
                   <td>{schoolClass.name}</td>
-                  <td>{schoolClass.section ?? '-'}</td>
                   <td>{schoolClass.capacity ?? '-'}</td>
                   <td>{schoolClass.student_count ?? 0}</td>
                   <td>{schoolClass.teacher_count ?? 0}</td>

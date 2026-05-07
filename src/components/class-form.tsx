@@ -28,10 +28,6 @@ export function ClassForm() {
           <input id="class-name" name="name" placeholder="Grade 3" required />
         </div>
         <div>
-          <label className="label" htmlFor="section">Section</label>
-          <input id="section" name="section" placeholder="Blue" />
-        </div>
-        <div>
           <label className="label" htmlFor="capacity">Capacity</label>
           <input id="capacity" name="capacity" type="number" min="0" placeholder="Optional" />
         </div>

@@ -67,7 +67,7 @@ const createStudentSchema = z.object({
     }
     return null;
   }, z.date()),
-  status: z.enum(['active', 'transferred', 'graduated']).default('active'),
+  status: z.enum(['active', 'transferred', 'graduated', 'inactive']).default('active'),
 });
 
 const updateStudentSchema = createStudentSchema.extend({
@@ -76,7 +76,6 @@ const updateStudentSchema = createStudentSchema.extend({
 
 const createClassSchema = z.object({
   name: z.string().min(2, 'Class name is required'),
-  section: z.string().optional(),
   capacity: z.preprocess((value) => {
     const num = Number(value);
     return Number.isNaN(num) ? null : num;
@@ -94,6 +93,27 @@ const createTeacherSchema = z.object({
   role: z.enum(['OWNER', 'TEACHER']),
 });
 
+const createFeeStructureSchema = z.object({
+  class_id: z.string().uuid('Please select a valid class'),
+  academic_year: z.string().min(4, 'Academic year is required'),
+  term: z.enum(['TERM_1', 'TERM_2', 'TERM_3']),
+  expected_amount: z.preprocess((value) => Number(value), z.number().positive('Expected amount must be greater than zero')),
+});
+
+const recordFeePaymentSchema = z.object({
+  student_fee_account_id: z.string().uuid('Select a fee account'),
+  amount: z.preprocess((value) => Number(value), z.number().positive('Payment amount must be greater than zero')),
+  receipt_number: z.string().min(1, 'Receipt number is required'),
+});
+
+const updateFeePaymentSchema = recordFeePaymentSchema.extend({
+  payment_id: z.string().uuid('Payment identifier is required'),
+});
+
+const deleteFeePaymentSchema = z.object({
+  payment_id: z.string().uuid('Payment identifier is required'),
+});
+
 const assignTeacherClassSchema = z.object({
   teacher_id: z.string().uuid(),
   class_id: z.string().uuid(),
@@ -106,7 +126,6 @@ const toggleTeacherStatusSchema = z.object({
 
 const promoteStudentsSchema = z.object({
   current_class_id: z.string().uuid(),
-  target_class_id: z.string().uuid(),
   student_ids: z.array(z.string().uuid()).min(1, 'Select at least one student to promote'),
 });
 
@@ -294,7 +313,6 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
 
   const parsed = createClassSchema.safeParse({
     name: String(formData.get('name') ?? '').trim(),
-    section: String(formData.get('section') ?? '').trim() || undefined,
     capacity: formData.get('capacity'),
     level_order: formData.get('level_order'),
   });
@@ -307,7 +325,6 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
     const supabase = await createClient();
     const { error } = await supabase.from('classes').insert({
       name: parsed.data.name,
-      section: parsed.data.section ?? null,
       capacity: parsed.data.capacity ?? null,
       level_order: parsed.data.level_order,
     });
@@ -318,6 +335,143 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
 
   revalidatePath('/classes');
   redirect('/classes');
+}
+
+export async function createFeeStructureAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireOwner();
+
+  const parsed = createFeeStructureSchema.safeParse({
+    class_id: String(formData.get('class_id') ?? ''),
+    academic_year: String(formData.get('academic_year') ?? '').trim(),
+    term: String(formData.get('term') ?? ''),
+    expected_amount: formData.get('expected_amount'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid fee structure details.' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from('fee_structures').insert({
+      class_id: parsed.data.class_id,
+      academic_year: parsed.data.academic_year,
+      term: parsed.data.term,
+      expected_amount: parsed.data.expected_amount,
+    });
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
+  }
+
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
+  return { success: 'Fee structure created successfully.' };
+}
+
+export async function recordFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireOwner();
+
+  const parsed = recordFeePaymentSchema.safeParse({
+    student_fee_account_id: String(formData.get('student_fee_account_id') ?? ''),
+    amount: formData.get('amount'),
+    receipt_number: String(formData.get('receipt_number') ?? '').trim(),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid payment details.' };
+  }
+
+  const studentId = String(formData.get('student_id') ?? '');
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from('fee_payments').insert({
+      student_fee_account_id: parsed.data.student_fee_account_id,
+      amount: parsed.data.amount,
+      receipt_number: parsed.data.receipt_number,
+    });
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
+  }
+
+  if (studentId) {
+    revalidatePath(`/students/${studentId}`);
+  }
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
+  return { success: 'Payment recorded successfully.' };
+}
+
+export async function updateFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireOwner();
+
+  const parsed = updateFeePaymentSchema.safeParse({
+    payment_id: String(formData.get('payment_id') ?? ''),
+    student_fee_account_id: String(formData.get('student_fee_account_id') ?? ''),
+    amount: formData.get('amount'),
+    receipt_number: String(formData.get('receipt_number') ?? '').trim(),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid payment update details.' };
+  }
+
+  const studentId = String(formData.get('student_id') ?? '');
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('fee_payments')
+      .update({
+        amount: parsed.data.amount,
+        receipt_number: parsed.data.receipt_number,
+      })
+      .eq('id', parsed.data.payment_id);
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
+  }
+
+  if (studentId) {
+    revalidatePath(`/students/${studentId}`);
+  }
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
+  return { success: 'Payment updated successfully.' };
+}
+
+export async function deleteFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireOwner();
+
+  const parsed = deleteFeePaymentSchema.safeParse({
+    payment_id: String(formData.get('payment_id') ?? ''),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Unable to delete payment.' };
+  }
+
+  const studentId = String(formData.get('student_id') ?? '');
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('fee_payments')
+      .delete()
+      .eq('id', parsed.data.payment_id);
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
+  }
+
+  if (studentId) {
+    revalidatePath(`/students/${studentId}`);
+  }
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
+  return { success: 'Payment deleted successfully.' };
 }
 
 export async function createTeacherAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -472,42 +626,15 @@ export async function promoteStudentsAction(formData: FormData): Promise<void> {
     throw new Error(parsed.error.errors[0]?.message ?? 'Provide valid promotion details.');
   }
 
-  if (parsed.data.current_class_id === parsed.data.target_class_id) {
-    throw new Error('Choose a different target class for promotion.');
-  }
-
   const supabase = await createClient();
+  const { error } = await supabase.rpc('promote_students', {
+    current_class_id: parsed.data.current_class_id,
+    student_ids: parsed.data.student_ids,
+  });
 
-  const { data: students, error: studentError } = await supabase
-    .from('students')
-    .select('id')
-    .in('id', parsed.data.student_ids)
-    .eq('class_id', parsed.data.current_class_id);
-
-  if (studentError) throw studentError;
-  if (!students || students.length !== parsed.data.student_ids.length) {
-    throw new Error('One or more selected students are not eligible for this promotion.');
+  if (error) {
+    throw error;
   }
-
-  const { error: updateError } = await supabase
-    .from('students')
-    .update({ class_id: parsed.data.target_class_id })
-    .in('id', parsed.data.student_ids);
-
-  if (updateError) throw updateError;
-
-  const sessionUser = await requireSessionUser();
-  const payloads = parsed.data.student_ids.map((studentId) => ({
-    student_id: studentId,
-    from_class_id: parsed.data.current_class_id,
-    to_class_id: parsed.data.target_class_id,
-    promoted_by: sessionUser.id,
-    promoted_at: new Date().toISOString(),
-    notes: null,
-  }));
-
-  const { error: promotionError } = await supabase.from('promotion_logs').insert(payloads);
-  if (promotionError) throw promotionError;
 
   revalidatePath('/students');
   revalidatePath('/promotions');

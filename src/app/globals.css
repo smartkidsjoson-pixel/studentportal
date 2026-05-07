@@ -83,7 +83,7 @@ th { color: #475569; background: var(--surface-muted); font-weight: 700; }
 }
 .status-active, .status-paid { color: var(--success); background: #dcfce7; }
 .status-partial { color: var(--warning); background: #fef3c7; }
-.status-transferred, .status-graduated, .status-unpaid { color: var(--danger); background: #fee2e2; }
+.status-transferred, .status-graduated, .status-unpaid, .status-inactive { color: var(--danger); background: #fee2e2; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; }
 .form-grid .wide { grid-column: 1 / -1; }
 .form-actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; }

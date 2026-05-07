@@ -1,5 +1,5 @@
 ﻿export type UserRole = 'OWNER' | 'TEACHER';
-export type StudentStatus = 'active' | 'transferred' | 'graduated';
+export type StudentStatus = 'active' | 'transferred' | 'graduated' | 'inactive';
 export type StudentGender = 'male' | 'female' | 'other';
 
 export type SessionUser = {
@@ -23,14 +23,61 @@ export type TeacherClassAssignment = {
   class_name: string;
 };
 
+export type AcademicTerm = 'TERM_1' | 'TERM_2' | 'TERM_3';
+
 export type ClassSummary = {
   id: string;
   name: string;
-  section: string | null;
-  level_order: number;
   capacity: number | null;
+  level_order: number;
   teacher_count?: number;
   student_count?: number;
+};
+
+export type FeeStructureSummary = {
+  id: string;
+  class_id: string;
+  class_name: string;
+  academic_year: string;
+  term: AcademicTerm;
+  expected_amount: number;
+  account_count: number;
+  total_collected: number;
+  total_outstanding: number;
+};
+
+export type StudentFeeAccountSummary = {
+  id: string;
+  student_id: string;
+  fee_structure_id: string;
+  academic_year: string;
+  term: AcademicTerm;
+  class_name: string | null;
+  expected_amount: number;
+  total_paid: number;
+  balance: number;
+  status: 'Cleared' | 'Partial' | 'Not Paid';
+};
+
+export type FeePaymentHistoryItem = {
+  id: string;
+  student_fee_account_id: string;
+  student_id: string;
+  amount: number;
+  receipt_number: string;
+  payment_date: string;
+  recorded_by: string | null;
+  academic_year: string;
+  term: AcademicTerm;
+  class_name: string | null;
+};
+
+export type FeeDashboardStats = {
+  totalExpected: number;
+  totalCollected: number;
+  totalOutstanding: number;
+  studentsWithBalance: number;
+  recentPayments: FeePaymentHistoryItem[];
 };
 
 export type StudentDirectoryItem = {
@@ -56,8 +103,10 @@ export type DashboardStats = {
   totalStudents: number;
   totalTeachers: number;
   totalClasses: number;
+  totalGraduated?: number;
   recentStudents: StudentDirectoryItem[];
   assignedClasses?: Array<{ id: string; name: string; studentCount: number }>;
+  feeStats?: FeeDashboardStats;
 };
 
 export type PromotionHistoryItem = {

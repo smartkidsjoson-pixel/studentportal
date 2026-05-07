@@ -1,3 +1,4 @@
 ﻿export function StatusPill({ value }: { value: string }) {
-  return <span className={`status-pill status-${value.toLowerCase()}`}>{value.replace(/_/g, ' ').toLowerCase()}</span>;
+  const label = value.replace(/_/g, ' ').toUpperCase();
+  return <span className={`status-pill status-${value.toLowerCase()}`}>{label}</span>;
 }

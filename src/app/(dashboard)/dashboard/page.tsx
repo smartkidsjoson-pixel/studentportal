@@ -21,10 +21,18 @@ export default async function DashboardPage() {
           <p className="muted">{user?.role === 'OWNER' ? 'All class groups in the portal.' : 'Classes you are assigned to teach.'}</p>
         </Card>
         {user?.role === 'OWNER' ? (
-          <Card title="Teachers">
-            <div className="stat-value">{stats.totalTeachers}</div>
-            <p className="muted">Active staff accounts with school access.</p>
-          </Card>
+          <>
+            <Card title="Teachers">
+              <div className="stat-value">{stats.totalTeachers}</div>
+              <p className="muted">Active staff accounts with school access.</p>
+            </Card>
+            {stats.feeStats ? (
+              <Card title="Fee collection">
+                <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(stats.feeStats.totalCollected)}</div>
+                <p className="muted">Recent fee revenue recorded across the school.</p>
+              </Card>
+            ) : null}
+          </>
         ) : null}
       </div>
 

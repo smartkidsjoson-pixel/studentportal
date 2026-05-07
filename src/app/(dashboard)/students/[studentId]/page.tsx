@@ -1,21 +1,25 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { getClasses, getPromotionHistory, getStudentById } from '@/lib/data';
+import { getClasses, getPromotionHistory, getStudentById, getSessionUserProfile, getStudentFeeOverview } from '@/lib/data';
 import { StudentProfileForm } from '@/components/students/student-profile-form';
+import { StudentFeeSection } from '@/components/students/student-fee-section';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusPill } from '@/components/ui/status-pill';
 
 export default async function StudentProfilePage({ params }: { params: { studentId: string } }) {
-  const [student, classes, promotionHistory] = await Promise.all([
+  const [student, classes, promotionHistory, user] = await Promise.all([
     getStudentById(params.studentId),
     getClasses(),
     getPromotionHistory(params.studentId),
+    getSessionUserProfile(),
   ]);
 
   if (!student) {
     notFound();
   }
+
+  const feeOverview = user?.role === 'OWNER' ? await getStudentFeeOverview(params.studentId) : null;
 
   return (
     <div className="grid">
@@ -91,6 +95,13 @@ export default async function StudentProfilePage({ params }: { params: { student
         </div>
         <StudentProfileForm student={student} classes={classes} />
       </div>
+      {user?.role === 'OWNER' && feeOverview ? (
+        <StudentFeeSection
+          studentId={student.id}
+          accounts={feeOverview.accounts}
+          payments={feeOverview.payments}
+        />
+      ) : null}
       <div className="card">
         <div className="section-header" style={{ marginBottom: '1rem' }}>
           <h2>Promotion history</h2>
