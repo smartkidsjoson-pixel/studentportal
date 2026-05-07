@@ -36,7 +36,7 @@ export async function getCurrentSessionUser() {
   }
 
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const roleSource = profile?.role;
+  const roleSource = profile?.role ?? (metadata.role as string | undefined);
 
   const finalRole = normalizeRole(roleSource);
 
