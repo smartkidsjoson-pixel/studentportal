@@ -75,7 +75,11 @@ export default async function StudentsPage({
                     <th>Name</th>
                     <th>Admission No.</th>
                     <th>Class</th>
-                    <th>Parent</th>
+                    <th>Parent Contact</th>
+                    <th>Fee Expected</th>
+                    <th>Total Paid</th>
+                    <th>Balance</th>
+                    <th>Payment Status</th>
                     <th>Status</th>
                     <th>Profile</th>
                   </tr>
@@ -87,6 +91,10 @@ export default async function StudentsPage({
                       <td>{student.admission_number}</td>
                       <td>{student.class_name ?? 'Unassigned'}</td>
                       <td>{student.parent_name ?? student.parent_phone ?? 'N/A'}</td>
+                      <td>${student.fee_expected.toFixed(2)}</td>
+                      <td>${student.total_paid.toFixed(2)}</td>
+                      <td>${student.balance.toFixed(2)}</td>
+                      <td><StatusPill value={student.payment_status ?? 'Not Paid'} /></td>
                       <td><StatusPill value={student.status} /></td>
                       <td>
                         <Link href={`/students/${student.id}`}>View</Link>

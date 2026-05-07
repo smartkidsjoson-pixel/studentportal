@@ -97,6 +97,10 @@ export type StudentDirectoryItem = {
   class_name: string | null;
   class_id: string | null;
   created_at: string | null;
+  fee_expected: number;
+  total_paid: number;
+  balance: number;
+  payment_status: 'Cleared' | 'Partial' | 'Not Paid' | null;
 };
 
 export type DashboardStats = {
