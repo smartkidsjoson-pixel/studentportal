@@ -57,7 +57,7 @@ export async function getTeacherAssignments(): Promise<TeacherClassAssignment[]>
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('teacher_class_assignments')
-    .select('id, teacher_id, class_id, class_name:classes(name)')
+    .select('id, teacher_id, class_id, classes(name)')
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -65,25 +65,36 @@ export async function getTeacherAssignments(): Promise<TeacherClassAssignment[]>
     return [];
   }
 
+  const rows = data as Array<{
+    id: string;
+    teacher_id: string;
+    class_id: string;
+    classes?: Array<{ name: string }>;
+  }> | null;
+
   return (
-    data?.map((assignment: any) => ({
+    rows?.map((assignment) => ({
       id: assignment.id,
       teacher_id: assignment.teacher_id,
       class_id: assignment.class_id,
-      class_name: assignment.class_name ?? 'Unknown',
+      class_name: assignment.classes?.[0]?.name ?? 'Unknown',
     })) ?? []
   );
 }
 
-export async function getStudents(params?: { query?: string; classId?: string }): Promise<StudentDirectoryItem[]> {
+export async function getStudents(params?: { query?: string; classId?: string; page?: number; pageSize?: number }): Promise<StudentDirectoryItem[]> {
   const supabase = await createClient();
   const query = params?.query?.trim();
+  const pageSize = params?.pageSize ?? 12;
+  const page = params?.page && params.page > 0 ? params.page : 1;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   let builder = supabase
     .from('student_directory')
     .select('*')
     .order('full_name', { ascending: true })
-    .limit(100);
+    .range(from, to);
 
   if (params?.classId) {
     builder = builder.eq('class_id', params.classId);
@@ -103,18 +114,71 @@ export async function getStudents(params?: { query?: string; classId?: string })
   return data ?? [];
 }
 
+export async function getStudentsCount(params?: { query?: string; classId?: string }): Promise<number> {
+  const supabase = await createClient();
+  const query = params?.query?.trim();
+
+  let builder = supabase
+    .from('student_directory')
+    .select('id', { count: 'exact', head: true });
+
+  if (params?.classId) {
+    builder = builder.eq('class_id', params.classId);
+  }
+
+  if (query) {
+    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%`);
+  }
+
+  const { count, error } = await builder;
+
+  if (error) {
+    console.error(error);
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
+export async function getStudentById(studentId: string): Promise<StudentDirectoryItem | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('student_directory')
+    .select('*')
+    .eq('id', studentId)
+    .single();
+
+  if (error) {
+    console.error(error);
+    return null;
+  }
+
+  return data ?? null;
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const supabase = await createClient();
-  const [studentsCount, topStudents, classDistribution] = await Promise.all([
-    supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('overall_merit_list').select('*').limit(5),
-    supabase.from('class_distribution').select('*').order('level_order', { ascending: true }),
+  const [studentsCount, classesCount, topStudents, classDistribution] = await Promise.all([
+    supabase
+      .from('students')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'active'),
+    supabase
+      .from('classes')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('overall_merit_list')
+      .select('*')
+      .limit(5),
+    supabase
+      .from('class_distribution')
+      .select('*')
+      .order('level_order', { ascending: true }),
   ]);
 
   return {
     totalStudents: studentsCount.count ?? 0,
-    totalFeesCollected: 0,
-    outstandingFees: 0,
+    totalClasses: classesCount.count ?? 0,
     topStudents:
       topStudents.data?.map((entry) => ({
         studentId: entry.student_id,
@@ -201,12 +265,7 @@ export async function getSessionUserProfile(): Promise<SessionUser | null> {
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
   const roleSource = profile?.role;
 
-  console.log("ACTUAL ROLE FROM DB (data):", profile?.role);
-
-  let finalRole = normalizeRole(roleSource);
-  if (user.email === 'gibsonkobia@gmail.com') {
-    finalRole = 'ADMIN';
-  }
+  const finalRole = normalizeRole(roleSource);
 
   return {
     id: user.id,

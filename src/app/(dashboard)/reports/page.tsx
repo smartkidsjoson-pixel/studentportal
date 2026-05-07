@@ -8,7 +8,7 @@ export default async function ReportsPage() {
 
   return (
     <div className="grid">
-      <Card title="Student Reports" description="Printable documents for academic and financial records.">
+      <Card title="Student Reports" description="Printable documents for academic progress and report cards.">
         <div className="table-wrap">
           <table>
             <thead>

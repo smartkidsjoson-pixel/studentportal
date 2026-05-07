@@ -9,9 +9,8 @@ Production-ready school administration system built with `Next.js` App Router, `
 - Class management from PG to Grade 9
 - Fast student search by name and admission number
 - Academic records with term-based marks, totals, and ranking
-- Fee ledgers, payment history, balances, and arrears tracking
-- Printable report card, fee statement, and class performance views
-- Audit logging for marks and fees changes
+- Printable report card and class performance reports
+- Audit logging for marks changes
 - Row Level Security for role-based access
 - Owner-only teacher account creation and class assignment management
 
@@ -84,21 +83,17 @@ npm run dev
 ## Role Model
 
 - `OWNER`
-  - Full access to students, classes, subjects, fees, marks, reports, and audit logs
+  - Full access to students, classes, subjects, marks, reports, and audit logs
 - `TEACHER`
   - Access limited to assigned classes and their students
   - Can view scoped data and update marks
-  - Can record payments only for accessible students
 
 ## Reporting
 
 - Printable report card: `/reports/report-card/[studentId]`
-- Printable fee statement: `/reports/fees/[studentId]`
 - Class performance report: `/reports/class/[classId]`
 - Owner-only teacher management: `/teachers`
-- JSON report endpoints:
-  - `/api/reports/report-card/[studentId]`
-  - `/api/reports/fee-statement/[studentId]`
+- JSON report endpoint: `/api/reports/report-card/[studentId]`
 
 ## Deployment
 
@@ -111,7 +106,7 @@ npm run dev
 
 ## Important Files
 
-- `src/lib/data.ts`: dashboard, search, fees, merit list, and report queries
+- `src/lib/data.ts`: dashboard, search, merit list, and report queries
 - `src/lib/actions.ts`: auth and server actions for create/update flows
 - `src/app/(dashboard)/*`: operational school management screens
 - `src/app/reports/*`: printable report pages

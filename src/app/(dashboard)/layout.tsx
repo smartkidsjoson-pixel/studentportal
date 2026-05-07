@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         <div className="topbar">
           <div>
             <h2>School Management System</h2>
-            <p>{user.fullName ?? user.email} | {user.email === 'gibsonkobia@gmail.com' ? 'ADMIN' : user.role}</p>
+            <p>{user.fullName ?? user.email} | {user.role}</p>
           </div>
         </div>
         {children}

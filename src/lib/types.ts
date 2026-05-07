@@ -43,8 +43,7 @@ export type StudentDirectoryItem = {
 
 export type DashboardStats = {
   totalStudents: number;
-  totalFeesCollected: number;
-  outstandingFees: number;
+  totalClasses: number;
   topStudents: Array<{ studentId: string; fullName: string; averageScore: number; className: string | null }>;
   classDistribution: Array<{ className: string; studentCount: number }>;
 };
@@ -85,29 +84,5 @@ export type ReportCardData = {
     average_score: number;
     position_in_class: number;
     overall_position: number;
-  }>;
-};
-
-export type FeeStatementData = {
-  student: {
-    id: string;
-    full_name: string;
-    admission_number: string;
-    class_name: string | null;
-  };
-  ledgers: Array<{
-    ledger_id: string;
-    session_label: string;
-    total_fee: number;
-    amount_paid: number;
-    balance: number;
-  }>;
-  payments: Array<{
-    id: string;
-    amount: number;
-    payment_date: string;
-    payment_method: string;
-    session_label: string;
-    recorded_by_name: string | null;
   }>;
 };

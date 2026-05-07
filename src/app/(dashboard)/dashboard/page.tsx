@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { getDashboardStats } from '@/lib/data';
-import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { formatPercentage } from '@/lib/utils';
 
 export default async function DashboardPage() {
   const stats = await getDashboardStats();
@@ -15,13 +15,9 @@ export default async function DashboardPage() {
           <div className="stat-value">{stats.totalStudents}</div>
           <p className="muted">Currently active enrolment across all classes.</p>
         </Card>
-        <Card title="Fees Collected">
-          <div className="stat-value">{formatCurrency(stats.totalFeesCollected)}</div>
-          <p className="muted">Payments received across all fee ledgers.</p>
-        </Card>
-        <Card title="Outstanding Fees">
-          <div className="stat-value">{formatCurrency(stats.outstandingFees)}</div>
-          <p className="muted">Total unpaid balance for the active sessions.</p>
+        <Card title="Total Classes">
+          <div className="stat-value">{stats.totalClasses}</div>
+          <p className="muted">Academic classes configured in the system.</p>
         </Card>
       </div>
 
@@ -60,7 +56,6 @@ export default async function DashboardPage() {
       <Card title="Quick Access" description="Key operations for daily school administration.">
         <div className="form-actions" style={{ marginTop: 0, flexWrap: 'wrap' }}>
           <Link href="/students">Students</Link>
-          <Link href="/fees">Fees</Link>
           <Link href="/results">Results</Link>
           <Link href="/reports">Reports</Link>
         </div>

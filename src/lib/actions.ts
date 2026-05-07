@@ -18,19 +18,46 @@ function parseInteger(value: FormDataEntryValue | null, defaultValue = 0): numbe
   return Number.isNaN(parsed) ? defaultValue : parsed;
 }
 
-function parseFloatValue(value: FormDataEntryValue | null, defaultValue = 0): number {
-  const parsed = parseFloat(String(value ?? ''));
-  return Number.isNaN(parsed) ? defaultValue : parsed;
-}
-
 function handleActionError(error: unknown): ActionState {
   console.error(error);
-  return { error: 'Failed' };
+
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+
+    if (message.includes('invalid login') || message.includes('invalid password') || message.includes('credentials')) {
+      return { error: 'Invalid login credentials' };
+    }
+    if (message.includes('duplicate') || message.includes('already exists') || message.includes('unique')) {
+      return { error: 'Record already exists. Please check and try again.' };
+    }
+    if (message.includes('not found')) {
+      return { error: 'Resource not found. Please try again.' };
+    }
+    if (message.includes('invalid')) {
+      return { error: 'Invalid input provided. Please check your data.' };
+    }
+    if (message.includes('unauthorized') || message.includes('permission')) {
+      return { error: 'You do not have permission to perform this action.' };
+    }
+  }
+
+  return { error: 'An error occurred. Please try again.' };
 }
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+const createStudentSchema = z.object({
+  full_name: z.string().min(2, 'Full name is required'),
+  class_id: z.string().uuid('Please select a valid class'),
+  parent_contact: z.string().optional(),
+  status: z.enum(['active', 'transferred', 'graduated']).default('active'),
+});
+
+const updateStudentSchema = createStudentSchema.extend({
+  student_id: z.string().uuid('Invalid student selected'),
 });
 
 const createTeacherSchema = z.object({
@@ -43,6 +70,14 @@ const createTeacherSchema = z.object({
 const assignTeacherClassSchema = z.object({
   teacher_id: z.string().uuid(),
   class_id: z.string().uuid(),
+});
+
+const upsertMarkSchema = z.object({
+  student_id: z.string().uuid('Invalid student'),
+  subject_id: z.string().uuid('Invalid subject'),
+  term: z.enum(['TERM_1', 'TERM_2', 'TERM_3']),
+  score: z.number().int().min(0).max(100, 'Score must be between 0 and 100'),
+  max_score: z.number().int().min(1).default(100),
 });
 
 export async function loginAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -78,15 +113,44 @@ export async function logoutAction() {
 }
 
 export async function createStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSessionUser();
+  const sessionUser = await requireSessionUser();
+
+  const parentContact = String(formData.get('parent_contact') ?? '').trim();
+  const parsed = createStudentSchema.safeParse({
+    full_name: String(formData.get('full_name') ?? '').trim(),
+    class_id: String(formData.get('class_id') ?? ''),
+    parent_contact: parentContact || undefined,
+    status: String(formData.get('status') ?? 'active'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid student information.' };
+  }
 
   try {
     const supabase = await createClient();
+
+    if (sessionUser.role === 'TEACHER') {
+      const { data: assignment, error: assignmentError } = await supabase
+        .from('teacher_class_assignments')
+        .select('id')
+        .eq('teacher_id', sessionUser.id)
+        .eq('class_id', parsed.data.class_id)
+        .single();
+
+      if (assignmentError && assignmentError.message !== 'Results contain 0 rows') {
+        throw assignmentError;
+      }
+      if (!assignment) {
+        return { error: 'You are not allowed to add students to this class.' };
+      }
+    }
+
     const payload = {
-      full_name: String(formData.get('full_name') ?? ''),
-      class_id: String(formData.get('class_id') ?? ''),
-      parent_contact: String(formData.get('parent_contact') ?? ''),
-      status: String(formData.get('status') ?? 'active'),
+      full_name: parsed.data.full_name,
+      class_id: parsed.data.class_id,
+      parent_contact: parsed.data.parent_contact ?? null,
+      status: parsed.data.status,
     };
 
     const { error } = await supabase.from('students').insert(payload);
@@ -98,6 +162,72 @@ export async function createStudentAction(_prevState: ActionState, formData: For
   revalidatePath('/students');
   revalidatePath('/dashboard');
   redirect('/students');
+}
+
+export async function updateStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const sessionUser = await requireSessionUser();
+
+  const parentContact = String(formData.get('parent_contact') ?? '').trim();
+  const parsed = updateStudentSchema.safeParse({
+    student_id: String(formData.get('student_id') ?? ''),
+    full_name: String(formData.get('full_name') ?? '').trim(),
+    class_id: String(formData.get('class_id') ?? ''),
+    parent_contact: parentContact || undefined,
+    status: String(formData.get('status') ?? 'active'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid student details.' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: currentStudent, error: studentError } = await supabase
+      .from('students')
+      .select('class_id')
+      .eq('id', parsed.data.student_id)
+      .single();
+
+    if (studentError) throw studentError;
+    if (!currentStudent) {
+      return { error: 'Student not found.' };
+    }
+
+    if (sessionUser.role === 'TEACHER') {
+      if (currentStudent.class_id !== parsed.data.class_id) {
+        return { error: 'You are not allowed to move this student to another class.' };
+      }
+
+      const { data: assignment, error: assignmentError } = await supabase
+        .from('teacher_class_assignments')
+        .select('id')
+        .eq('teacher_id', sessionUser.id)
+        .eq('class_id', currentStudent.class_id)
+        .single();
+
+      if (assignmentError && assignmentError.message !== 'Results contain 0 rows') {
+        throw assignmentError;
+      }
+      if (!assignment) {
+        return { error: 'You are not allowed to update this student.' };
+      }
+    }
+
+    const { error } = await supabase.from('students').update({
+      full_name: parsed.data.full_name,
+      class_id: parsed.data.class_id,
+      parent_contact: parsed.data.parent_contact ?? null,
+      status: parsed.data.status,
+    }).eq('id', parsed.data.student_id);
+
+    if (error) throw error;
+  } catch (e) {
+    return handleActionError(e);
+  }
+
+  revalidatePath('/students');
+  revalidatePath('/dashboard');
+  return { success: 'Student record updated successfully.' };
 }
 
 export async function createClassAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -235,16 +365,56 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
 }
 
 export async function upsertMarkAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSessionUser();
+  const sessionUser = await requireSessionUser();
+
+  const parsed = upsertMarkSchema.safeParse({
+    student_id: String(formData.get('student_id') ?? ''),
+    subject_id: String(formData.get('subject_id') ?? ''),
+    term: String(formData.get('term') ?? 'TERM_1'),
+    score: parseInteger(formData.get('score')),
+    max_score: parseInteger(formData.get('max_score')),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid marks details.' };
+  }
 
   try {
     const supabase = await createClient();
+
+    if (sessionUser.role === 'TEACHER') {
+      const { data: student, error: studentError } = await supabase
+        .from('students')
+        .select('class_id')
+        .eq('id', parsed.data.student_id)
+        .single();
+
+      if (studentError) throw studentError;
+      if (!student?.class_id) {
+        return { error: 'You are not allowed to enter marks for this student.' };
+      }
+
+      const { data: assignment, error: assignmentError } = await supabase
+        .from('teacher_class_assignments')
+        .select('id')
+        .eq('teacher_id', sessionUser.id)
+        .eq('class_id', student.class_id)
+        .single();
+
+      if (assignmentError && assignmentError.message !== 'Results contain 0 rows') {
+        throw assignmentError;
+      }
+      if (!assignment) {
+        return { error: 'You are not allowed to enter marks for this student.' };
+      }
+    }
+
     const payload = {
-      student_id: String(formData.get('student_id') ?? ''),
-      subject_id: String(formData.get('subject_id') ?? ''),
-      term: String(formData.get('term') ?? 'TERM_1'),
-      score: parseInteger(formData.get('score')),
-      max_score: parseInteger(formData.get('max_score')),
+      student_id: parsed.data.student_id,
+      subject_id: parsed.data.subject_id,
+      term: parsed.data.term,
+      score: parsed.data.score,
+      max_score: parsed.data.max_score,
     };
 
     const { error } = await supabase

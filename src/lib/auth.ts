@@ -38,12 +38,7 @@ export async function getCurrentSessionUser() {
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
   const roleSource = profile?.role;
 
-  console.log("ACTUAL ROLE FROM DB:", profile?.role);
-
-  let finalRole = normalizeRole(roleSource);
-  if (user.email === 'gibsonkobia@gmail.com') {
-    finalRole = 'ADMIN';
-  }
+  const finalRole = normalizeRole(roleSource);
 
   return {
     id: user.id,
@@ -66,7 +61,7 @@ export async function requireSessionUser() {
 export async function requireOwner() {
   const sessionUser = await requireSessionUser();
 
-  if (!(sessionUser.role === 'OWNER' || sessionUser.role === 'ADMIN' || sessionUser.email === 'gibsonkobia@gmail.com')) {
+  if (sessionUser.role !== 'OWNER') {
     redirect('/dashboard');
   }
 

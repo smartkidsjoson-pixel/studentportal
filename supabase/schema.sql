@@ -63,27 +63,6 @@ create table if not exists public.students (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.student_fee_ledgers (
-  id uuid primary key default gen_random_uuid(),
-  student_id uuid not null references public.students(id) on delete cascade,
-  session_label text not null,
-  total_fee numeric(12,2) not null check (total_fee >= 0),
-  created_by uuid references public.profiles(id),
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  unique(student_id, session_label)
-);
-
-create table if not exists public.fee_payments (
-  id uuid primary key default gen_random_uuid(),
-  fee_ledger_id uuid not null references public.student_fee_ledgers(id) on delete cascade,
-  amount numeric(12,2) not null check (amount > 0),
-  payment_date date not null default current_date,
-  payment_method text not null,
-  recorded_by uuid references public.profiles(id),
-  created_at timestamptz not null default timezone('utc', now())
-);
-
 create table if not exists public.marks (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students(id) on delete cascade,
@@ -115,10 +94,6 @@ as $$
 begin
   if tg_table_name = 'students' and new.created_by is null then
     new.created_by := auth.uid();
-  elsif tg_table_name = 'student_fee_ledgers' and new.created_by is null then
-    new.created_by := auth.uid();
-  elsif tg_table_name = 'fee_payments' and new.recorded_by is null then
-    new.recorded_by := auth.uid();
   elsif tg_table_name = 'marks' then
     new.updated_by := auth.uid();
   end if;
@@ -184,16 +159,6 @@ create trigger students_set_user
 before insert on public.students
 for each row execute procedure public.set_current_user_columns();
 
-drop trigger if exists ledgers_set_user on public.student_fee_ledgers;
-create trigger ledgers_set_user
-before insert on public.student_fee_ledgers
-for each row execute procedure public.set_current_user_columns();
-
-drop trigger if exists payments_set_user on public.fee_payments;
-create trigger payments_set_user
-before insert on public.fee_payments
-for each row execute procedure public.set_current_user_columns();
-
 drop trigger if exists marks_set_user on public.marks;
 create trigger marks_set_user
 before insert or update on public.marks
@@ -205,25 +170,17 @@ drop trigger if exists classes_touch on public.classes;
 create trigger classes_touch before update on public.classes for each row execute procedure public.touch_updated_at();
 drop trigger if exists students_touch on public.students;
 create trigger students_touch before update on public.students for each row execute procedure public.touch_updated_at();
-drop trigger if exists ledgers_touch on public.student_fee_ledgers;
-create trigger ledgers_touch before update on public.student_fee_ledgers for each row execute procedure public.touch_updated_at();
 drop trigger if exists marks_touch on public.marks;
 create trigger marks_touch before update on public.marks for each row execute procedure public.touch_updated_at();
 
 drop trigger if exists marks_audit on public.marks;
 create trigger marks_audit after insert or update or delete on public.marks for each row execute procedure public.write_audit_log();
-drop trigger if exists payments_audit on public.fee_payments;
-create trigger payments_audit after insert or update or delete on public.fee_payments for each row execute procedure public.write_audit_log();
-drop trigger if exists ledgers_audit on public.student_fee_ledgers;
-create trigger ledgers_audit after insert or update or delete on public.student_fee_ledgers for each row execute procedure public.write_audit_log();
 
 create index if not exists students_admission_number_idx on public.students(admission_number);
 create index if not exists students_full_name_trgm_idx on public.students using gin(full_name gin_trgm_ops);
 create index if not exists students_class_id_idx on public.students(class_id);
 create index if not exists marks_student_term_idx on public.marks(student_id, term);
 create index if not exists marks_subject_term_idx on public.marks(subject_id, term);
-create index if not exists ledgers_student_idx on public.student_fee_ledgers(student_id);
-create index if not exists payments_ledger_date_idx on public.fee_payments(fee_ledger_id, payment_date desc);
 create index if not exists teacher_assignments_teacher_idx on public.teacher_class_assignments(teacher_id, class_id);
 
 create or replace function public.current_role()
@@ -302,51 +259,6 @@ from public.classes c
 left join public.students s on s.class_id = c.id and s.status = 'active'
 group by c.id;
 
-create or replace view public.fee_balances as
-with payments as (
-  select fee_ledger_id, coalesce(sum(amount), 0)::numeric(12,2) as amount_paid
-  from public.fee_payments
-  group by fee_ledger_id
-)
-select
-  l.id as ledger_id,
-  s.id as student_id,
-  s.full_name as student_name,
-  s.admission_number,
-  c.name as class_name,
-  l.session_label,
-  l.total_fee,
-  coalesce(p.amount_paid, 0)::numeric(12,2) as amount_paid,
-  (l.total_fee - coalesce(p.amount_paid, 0))::numeric(12,2) as balance,
-  case
-    when coalesce(p.amount_paid, 0) >= l.total_fee then 'paid'
-    when coalesce(p.amount_paid, 0) = 0 then 'unpaid'
-    else 'partial'
-  end as fee_state
-from public.student_fee_ledgers l
-join public.students s on s.id = l.student_id
-left join public.classes c on c.id = s.class_id
-left join payments p on p.fee_ledger_id = l.id;
-
-create or replace view public.fee_dashboard_summary as
-select
-  coalesce(sum(amount_paid), 0)::numeric(12,2) as total_collected,
-  coalesce(sum(balance), 0)::numeric(12,2) as outstanding_balance
-from public.fee_balances;
-
-create or replace view public.payment_history_view as
-select
-  fp.id,
-  l.student_id,
-  fp.amount,
-  fp.payment_date,
-  fp.payment_method,
-  l.session_label,
-  p.full_name as recorded_by_name
-from public.fee_payments fp
-join public.student_fee_ledgers l on l.id = fp.fee_ledger_id
-left join public.profiles p on p.id = fp.recorded_by;
-
 create or replace view public.academic_marks_view as
 select
   m.id,
@@ -373,8 +285,8 @@ with aggregated as (
 )
 select
   a.*,
-  rank() over (partition by a.class_id, a.term order by a.total_score desc, a.average_score desc) as position_in_class,
-  rank() over (partition by a.term order by a.total_score desc, a.average_score desc) as overall_position
+  dense_rank() over (partition by a.class_id, a.term order by a.total_score desc, a.average_score desc) as position_in_class,
+  dense_rank() over (partition by a.term order by a.total_score desc, a.average_score desc) as overall_position
 from aggregated a;
 
 create or replace view public.term_merit_list as
@@ -429,8 +341,6 @@ alter table public.classes enable row level security;
 alter table public.teacher_class_assignments enable row level security;
 alter table public.subjects enable row level security;
 alter table public.students enable row level security;
-alter table public.student_fee_ledgers enable row level security;
-alter table public.fee_payments enable row level security;
 alter table public.marks enable row level security;
 alter table public.audit_logs enable row level security;
 
@@ -474,36 +384,6 @@ drop policy if exists students_update_scoped on public.students;
 create policy students_update_scoped on public.students
 for update using (public.can_access_student(id)) with check (public.is_owner() or public.teacher_has_class(class_id));
 
-drop policy if exists student_fees_read_scoped on public.student_fee_ledgers;
-create policy student_fees_read_scoped on public.student_fee_ledgers
-for select using (public.can_access_student(student_id));
-
-drop policy if exists student_fees_owner_write on public.student_fee_ledgers;
-create policy student_fees_owner_write on public.student_fee_ledgers
-for all using (public.is_owner()) with check (public.is_owner());
-
-drop policy if exists fee_payments_read_scoped on public.fee_payments;
-create policy fee_payments_read_scoped on public.fee_payments
-for select using (
-  exists (
-    select 1 from public.student_fee_ledgers l
-    where l.id = fee_ledger_id and public.can_access_student(l.student_id)
-  )
-);
-
-drop policy if exists fee_payments_insert_scoped on public.fee_payments;
-create policy fee_payments_insert_scoped on public.fee_payments
-for insert with check (
-  exists (
-    select 1 from public.student_fee_ledgers l
-    where l.id = fee_ledger_id and public.can_access_student(l.student_id)
-  )
-);
-
-drop policy if exists fee_payments_update_owner on public.fee_payments;
-create policy fee_payments_update_owner on public.fee_payments
-for update using (public.is_owner()) with check (public.is_owner());
-
 drop policy if exists marks_read_scoped on public.marks;
 create policy marks_read_scoped on public.marks
 for select using (public.can_access_student(student_id));
@@ -519,9 +399,6 @@ for select using (public.is_owner());
 grant select on public.student_directory to authenticated;
 grant select on public.class_overview to authenticated;
 grant select on public.class_distribution to authenticated;
-grant select on public.fee_balances to authenticated;
-grant select on public.fee_dashboard_summary to authenticated;
-grant select on public.payment_history_view to authenticated;
 grant select on public.academic_marks_view to authenticated;
 grant select on public.student_term_totals to authenticated;
 grant select on public.term_merit_list to authenticated;

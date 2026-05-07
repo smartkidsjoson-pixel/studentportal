@@ -1,17 +1,19 @@
 function normalizeSupabaseUrl(value: string): string {
-  let trimmed = value.trim().replace(/\/+$/, '');
+  const trimmed = value.trim().replace(/\/+$/, '');
   let url: URL;
 
   try {
     url = new URL(trimmed);
-  } catch (error) {
+  } catch {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL must be a valid URL.');
   }
 
-  const sanitizedPath = url.pathname.replace(/\/(rest|auth)\/v1$/i, '');
-  const normalized = `${url.protocol}//${url.host}${sanitizedPath}`;
+  const pathname = url.pathname.toLowerCase();
+  if (pathname.includes('/rest/v1') || pathname.includes('/auth/v1')) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL must be the base Supabase project URL without /rest/v1 or /auth/v1.');
+  }
 
-  return normalized.replace(/\/+$/, '');
+  return trimmed;
 }
 
 export function getSupabaseUrl() {

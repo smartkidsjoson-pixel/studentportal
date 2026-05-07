@@ -3,7 +3,6 @@ import { TeacherForm } from '@/components/teachers/teacher-form';
 import { ClassAssignmentForm } from '@/components/teachers/class-assignment-form';
 import { requireOwner } from '@/lib/auth';
 import { getClasses, getTeacherAssignments, getTeachers } from '@/lib/data';
-import type { TeacherProfile } from '@/lib/types';
 
 export default async function TeachersPage() {
   await requireOwner();
