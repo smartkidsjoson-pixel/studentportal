@@ -377,17 +377,25 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
 export async function recordFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
 
+  // Strip numeric prefixes (e.g., '1_' from keys like '1_amount', '0_receipt_number')
+  const rawData = Object.fromEntries(formData.entries());
+  const cleanData: Record<string, any> = {};
+  for (const key in rawData) {
+    const cleanKey = key.replace(/^\d+_/, '');
+    cleanData[cleanKey] = rawData[key];
+  }
+
   const parsed = recordFeePaymentSchema.safeParse({
-    student_fee_account_id: String(formData.get('student_fee_account_id') ?? ''),
-    amount: formData.get('amount'),
-    receipt_number: String(formData.get('receipt_number') ?? '').trim(),
+    student_fee_account_id: String(cleanData.student_fee_account_id ?? ''),
+    amount: cleanData.amount,
+    receipt_number: String(cleanData.receipt_number ?? '').trim(),
   });
 
   if (!parsed.success) {
     return { error: parsed.error.errors[0]?.message ?? 'Provide valid payment details.' };
   }
 
-  const studentId = String(formData.get('student_id') ?? '');
+  const studentId = String(cleanData.student_id ?? '');
 
   try {
     const supabase = await createClient();
@@ -412,18 +420,26 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
 export async function updateFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
 
+  // Strip numeric prefixes (e.g., '1_' from keys like '1_amount', '0_receipt_number')
+  const rawData = Object.fromEntries(formData.entries());
+  const cleanData: Record<string, any> = {};
+  for (const key in rawData) {
+    const cleanKey = key.replace(/^\d+_/, '');
+    cleanData[cleanKey] = rawData[key];
+  }
+
   const parsed = updateFeePaymentSchema.safeParse({
-    payment_id: String(formData.get('payment_id') ?? ''),
-    student_fee_account_id: String(formData.get('student_fee_account_id') ?? ''),
-    amount: formData.get('amount'),
-    receipt_number: String(formData.get('receipt_number') ?? '').trim(),
+    payment_id: String(cleanData.payment_id ?? ''),
+    student_fee_account_id: String(cleanData.student_fee_account_id ?? ''),
+    amount: cleanData.amount,
+    receipt_number: String(cleanData.receipt_number ?? '').trim(),
   });
 
   if (!parsed.success) {
     return { error: parsed.error.errors[0]?.message ?? 'Provide valid payment update details.' };
   }
 
-  const studentId = String(formData.get('student_id') ?? '');
+  const studentId = String(cleanData.student_id ?? '');
 
   try {
     const supabase = await createClient();
