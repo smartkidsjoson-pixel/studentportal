@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
 import { getClasses, getPromotionHistory, getStudentById, getSessionUserProfile, getStudentFeeOverview } from '@/lib/data';
 import { StudentProfileForm } from '@/components/students/student-profile-form';
@@ -15,8 +14,24 @@ export default async function StudentProfilePage({ params }: { params: { student
     getSessionUserProfile(),
   ]);
 
+  console.log('FETCHED STUDENT:', { studentId: params.studentId, student });
+
   if (!student) {
-    notFound();
+    return (
+      <div className="grid">
+        <div className="card">
+          <div className="section-header" style={{ marginBottom: '1rem' }}>
+            <h2>User not found</h2>
+            <p>No student record was found for the requested ID.</p>
+          </div>
+          <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+            <Link href="/students" className="secondary">
+              Back to student list
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const feeOverview = user?.role === 'OWNER' ? await getStudentFeeOverview(params.studentId) : null;
