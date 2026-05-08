@@ -567,12 +567,39 @@ select
   s.id,
   s.full_name,
   s.admission_number,
-  s.parent_contact,
+  s.gender,
+  s.date_of_birth,
+  s.parent_name,
+  s.parent_phone,
+  s.alt_phone,
+  s.home_address,
   s.status,
   s.class_id,
-  c.name as class_name
+  c.name as class_name,
+  s.date_joined,
+  s.profile_photo_url,
+  s.notes,
+  s.created_at,
+  coalesce(f.fee_expected, 0) as fee_expected,
+  coalesce(f.total_paid, 0) as total_paid,
+  coalesce(f.balance, 0) as balance,
+  coalesce(f.payment_status, 'Not Paid') as payment_status
 from public.students s
-left join public.classes c on c.id = s.class_id;
+left join public.classes c on c.id = s.class_id
+left join (
+  select
+    student_id,
+    sum(expected_amount) as fee_expected,
+    sum(total_paid) as total_paid,
+    sum(balance) as balance,
+    case
+      when sum(balance) <= 0 then 'Cleared'
+      when sum(total_paid) > 0 then 'Partial'
+      else 'Not Paid'
+    end as payment_status
+  from public.student_fee_accounts_overview
+  group by student_id
+) f on f.student_id = s.id;
 
 create or replace function public.teacher_can_access_student_enrollment(target_student_id uuid)
 returns boolean

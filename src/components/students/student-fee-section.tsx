@@ -17,7 +17,8 @@ import { formatCurrency } from '@/lib/utils';
 const initialState = {} as { error?: string; success?: string };
 
 function feeAccountLabel(account: StudentFeeAccountSummary) {
-  return `${account.academic_year} • ${account.term.replace('_', ' ')} • ${account.class_name ?? 'Class'}`;
+  const termLabel = account.term ? account.term.replace('_', ' ') : 'Unknown term';
+  return `${account.academic_year ?? 'Year unknown'} • ${termLabel} • ${account.class_name ?? 'Class'}`;
 }
 
 export function StudentFeeSection({

@@ -212,7 +212,7 @@ export async function getStudentById(studentId: string): Promise<StudentDirector
 
   if (error) {
     console.error('getStudentById failed:', error);
-    throw new Error('Unable to load the selected student.');
+    return null;
   }
 
   return data ?? null;
