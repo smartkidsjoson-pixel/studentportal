@@ -167,9 +167,11 @@ export async function logoutAction() {
 export async function createStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const sessionUser = await requireSessionUser();
 
+  const classIdValue = formData.get('class_id');
+  const classId = typeof classIdValue === 'string' ? classIdValue.trim() : '';
   const parsed = createStudentSchema.safeParse({
     full_name: String(formData.get('full_name') ?? '').trim(),
-    class_id: String(formData.get('class_id') ?? ''),
+    class_id: classId || null,
     parent_name: String(formData.get('parent_name') ?? '').trim() || undefined,
     parent_phone: String(formData.get('parent_phone') ?? '').trim() || undefined,
     alt_phone: String(formData.get('alt_phone') ?? '').trim() || undefined,
