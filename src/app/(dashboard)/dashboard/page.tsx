@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { getDashboardStats, getSessionUserProfile } from '@/lib/data';
+import { formatCurrency } from '@/lib/utils';
 import type { SessionUser } from '@/lib/types';
 
 export default async function DashboardPage() {
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
             </Card>
             {stats.feeStats ? (
               <Card title="Fee collection">
-                <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(stats.feeStats.totalCollected)}</div>
+                <div className="stat-value">{formatCurrency(stats.feeStats.totalCollected)}</div>
                 <p className="muted">Recent fee revenue recorded across the school.</p>
               </Card>
             ) : null}

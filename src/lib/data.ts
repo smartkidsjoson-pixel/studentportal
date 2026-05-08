@@ -208,11 +208,11 @@ export async function getStudentById(studentId: string): Promise<StudentDirector
     .from('student_directory')
     .select('*')
     .eq('id', studentId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    console.error(error);
-    return null;
+    console.error('getStudentById failed:', error);
+    throw new Error('Unable to load the selected student.');
   }
 
   return data ?? null;

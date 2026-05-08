@@ -4,6 +4,7 @@ import { StudentForm } from '@/components/students/student-form';
 import { StatusPill } from '@/components/ui/status-pill';
 import { EmptyState } from '@/components/ui/empty-state';
 import { getClasses, getStudents, getStudentsCount } from '@/lib/data';
+import { formatCurrency } from '@/lib/utils';
 
 export default async function StudentsPage({
   searchParams,
@@ -91,9 +92,9 @@ export default async function StudentsPage({
                       <td>{student.admission_number}</td>
                       <td>{student.class_name ?? 'Unassigned'}</td>
                       <td>{student.parent_name ?? student.parent_phone ?? 'N/A'}</td>
-                      <td>${Number(student?.fee_expected ?? 0).toFixed(2)}</td>
-                      <td>${Number(student?.total_paid ?? 0).toFixed(2)}</td>
-                      <td>${Number(student?.balance ?? 0).toFixed(2)}</td>
+                      <td>{formatCurrency(Number(student?.fee_expected ?? 0))}</td>
+                      <td>{formatCurrency(Number(student?.total_paid ?? 0))}</td>
+                      <td>{formatCurrency(Number(student?.balance ?? 0))}</td>
                       <td><StatusPill value={student?.payment_status ?? 'Not Paid'} /></td>
                       <td><StatusPill value={student.status} /></td>
                       <td>

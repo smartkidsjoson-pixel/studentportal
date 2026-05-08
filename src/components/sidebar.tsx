@@ -15,6 +15,9 @@ const commonItems = [
 
 const ownerItems = [
   { href: '/fees', label: 'Fees' },
+  { href: '/fees#fee-structures', label: 'Fee Structures' },
+  { href: '/fees#payments', label: 'Payments' },
+  { href: '/fees#balances', label: 'Balances' },
   { href: '/teachers', label: 'Teachers' },
   { href: '/promotions', label: 'Promotions' },
 ];
