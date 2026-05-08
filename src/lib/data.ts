@@ -57,14 +57,29 @@ export async function getClasses(user?: SessionUser): Promise<ClassSummary[]> {
 export async function getTeachers(): Promise<TeacherProfile[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, role, is_active')
-    .in('role', ['OWNER', 'TEACHER'])
+    .from('staff_directory')
+    .select('id, full_name, role, is_active, assigned_classes')
     .order('full_name', { ascending: true });
 
   if (error) {
-    console.error(error);
-    return [];
+    console.error('Failed to read staff_directory view, falling back to profiles', error);
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, is_active')
+      .in('role', ['OWNER', 'TEACHER'])
+      .order('full_name', { ascending: true });
+
+    if (fallbackError) {
+      console.error('Failed to read profiles fallback for teachers', fallbackError);
+      return [];
+    }
+
+    return (
+      fallbackData?.map((row) => ({
+        ...row,
+        assigned_classes: 'None',
+      })) ?? []
+    );
   }
 
   return data ?? [];

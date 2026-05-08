@@ -46,7 +46,10 @@ const loginSchema = z.object({
 
 const createStudentSchema = z.object({
   full_name: z.string().min(2, 'Full name is required'),
-  class_id: z.string().uuid('Please select a valid class'),
+  class_id: z.preprocess((value) => {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    return trimmed.length > 0 ? trimmed : null;
+  }, z.string().uuid('Please select a valid class').nullable()),
   parent_name: z.string().optional(),
   parent_phone: z.string().optional(),
   alt_phone: z.string().optional(),
@@ -65,7 +68,7 @@ const createStudentSchema = z.object({
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? null : date;
     }
-    return null;
+    return new Date();
   }, z.date()),
   status: z.enum(['active', 'transferred', 'graduated', 'inactive']).default('active'),
 });
@@ -203,7 +206,7 @@ export async function createStudentAction(_prevState: ActionState, formData: For
 
     const payload = {
       full_name: parsed.data.full_name,
-      class_id: parsed.data.class_id,
+      class_id: parsed.data.class_id ?? null,
       parent_name: parsed.data.parent_name ?? null,
       parent_phone: parsed.data.parent_phone ?? null,
       alt_phone: parsed.data.alt_phone ?? null,

@@ -14,6 +14,7 @@ export type TeacherProfile = {
   full_name: string;
   role: UserRole;
   is_active: boolean;
+  assigned_classes?: string | null;
 };
 
 export type TeacherClassAssignment = {
