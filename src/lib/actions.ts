@@ -326,7 +326,7 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
     const { error } = await supabase.from('classes').insert({
       name: parsed.data.name,
       capacity: parsed.data.capacity ?? null,
-      level_order: parsed.data.level_order,
+      level_order: parsed.data.level_order ?? 0,
     });
     if (error) throw error;
   } catch (e) {
@@ -571,14 +571,16 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
     const supabase = await createClient();
     const { error } = await supabase
       .from('teacher_class_assignments')
-      .upsert(
-        {
-          teacher_id: parsed.data.teacher_id,
-          class_id: parsed.data.class_id,
-        },
-        { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' },
-      );
-    if (error) throw error;
+      .insert({
+        teacher_id: parsed.data.teacher_id,
+        class_id: parsed.data.class_id,
+      });
+
+    if (error) {
+      if (!error.message.toLowerCase().includes('duplicate')) {
+        throw error;
+      }
+    }
   } catch (e) {
     return handleActionError(e);
   }
