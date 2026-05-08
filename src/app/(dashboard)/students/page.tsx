@@ -91,9 +91,9 @@ export default async function StudentsPage({
                       <td>{student.admission_number}</td>
                       <td>{student.class_name ?? 'Unassigned'}</td>
                       <td>{student.parent_name ?? student.parent_phone ?? 'N/A'}</td>
-                      <td>${student?.fee_expected?.toFixed(2) ?? '0.00'}</td>
-                      <td>${student?.total_paid?.toFixed(2) ?? '0.00'}</td>
-                      <td>${student?.balance?.toFixed(2) ?? '0.00'}</td>
+                      <td>${Number(student?.fee_expected ?? 0).toFixed(2)}</td>
+                      <td>${Number(student?.total_paid ?? 0).toFixed(2)}</td>
+                      <td>${Number(student?.balance ?? 0).toFixed(2)}</td>
                       <td><StatusPill value={student?.payment_status ?? 'Not Paid'} /></td>
                       <td><StatusPill value={student.status} /></td>
                       <td>
