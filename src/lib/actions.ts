@@ -504,7 +504,7 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
-      role: parsed.data.role,
+      role: parsed.data.role as 'OWNER' | 'TEACHER',
       is_active: true,
     });
     if (profileError) throw profileError;

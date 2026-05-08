@@ -34,7 +34,7 @@ export default async function TeachersPage() {
               </tr>
             </thead>
             <tbody>
-              {teachers.map((teacher) => (
+              {(teachers ?? []).map((teacher) => (
                 <tr key={teacher.id}>
                   <td>{teacher.full_name}</td>
                   <td>{teacher.role}</td>

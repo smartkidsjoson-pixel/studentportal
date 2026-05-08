@@ -18,25 +18,25 @@ export default async function FeesPage() {
     <div className="grid">
       <div className="grid stats">
         <Card title="Total expected fees">
-          <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(feeStats.totalExpected)}</div>
+          <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(feeStats?.totalExpected ?? 0)}</div>
           <p className="muted">Planned fee revenue for active student fee accounts.</p>
         </Card>
         <Card title="Total collected">
-          <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(feeStats.totalCollected)}</div>
+          <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(feeStats?.totalCollected ?? 0)}</div>
           <p className="muted">Payments received from students so far.</p>
         </Card>
         <Card title="Total outstanding">
-          <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(feeStats.totalOutstanding)}</div>
+          <div className="stat-value">{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(feeStats?.totalOutstanding ?? 0)}</div>
           <p className="muted">All unpaid balances across fee accounts.</p>
         </Card>
         <Card title="Students with balances">
-          <div className="stat-value">{feeStats.studentsWithBalance}</div>
+          <div className="stat-value">{feeStats?.studentsWithBalance ?? 0}</div>
           <p className="muted">Students who still have amounts to pay.</p>
         </Card>
       </div>
 
       <Card title="Fee structure registry" description="View expected fees by class, year and term.">
-        {feeStructures.length ? (
+        {feeStructures?.length ? (
           <div className="table-wrap">
             <table>
               <thead>
@@ -51,7 +51,7 @@ export default async function FeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {feeStructures.map((structure: FeeStructureSummary) => (
+                {(feeStructures ?? []).map((structure: FeeStructureSummary) => (
                   <tr key={structure.id}>
                     <td>{structure.class_name}</td>
                     <td>{structure.academic_year}</td>

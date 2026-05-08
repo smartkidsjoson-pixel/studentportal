@@ -59,7 +59,7 @@ export default async function StudentsPage({
           <button type="submit">Search</button>
         </form>
 
-        {students.length === 0 ? (
+        {students?.length === 0 ? (
           <EmptyState
             title="No students found"
             description={params.q || params.classId || params.status ? 'Try another filter or clear the search.' : 'Register students to populate the directory.'}
@@ -85,16 +85,16 @@ export default async function StudentsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
+                  {(students ?? []).map((student) => (
                     <tr key={student.id}>
                       <td>{student.full_name}</td>
                       <td>{student.admission_number}</td>
                       <td>{student.class_name ?? 'Unassigned'}</td>
                       <td>{student.parent_name ?? student.parent_phone ?? 'N/A'}</td>
-                      <td>${student.fee_expected.toFixed(2)}</td>
-                      <td>${student.total_paid.toFixed(2)}</td>
-                      <td>${student.balance.toFixed(2)}</td>
-                      <td><StatusPill value={student.payment_status ?? 'Not Paid'} /></td>
+                      <td>${student?.fee_expected?.toFixed(2) ?? '0.00'}</td>
+                      <td>${student?.total_paid?.toFixed(2) ?? '0.00'}</td>
+                      <td>${student?.balance?.toFixed(2) ?? '0.00'}</td>
+                      <td><StatusPill value={student?.payment_status ?? 'Not Paid'} /></td>
                       <td><StatusPill value={student.status} /></td>
                       <td>
                         <Link href={`/students/${student.id}`}>View</Link>
