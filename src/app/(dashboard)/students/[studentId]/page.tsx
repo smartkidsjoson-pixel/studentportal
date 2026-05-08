@@ -6,15 +6,41 @@ import { StudentFeeSection } from '@/components/students/student-fee-section';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusPill } from '@/components/ui/status-pill';
 
-export default async function StudentProfilePage({ params }: { params: { studentId: string } }) {
+export default async function StudentProfilePage({ 
+  params 
+}: { 
+  params: Promise<{ studentId: string }> 
+}) {
+  const resolvedParams = await params;
+  const { studentId } = resolvedParams;
+
+  // Guard against undefined studentId
+  if (!studentId || studentId === 'undefined') {
+    return (
+      <div className="grid">
+        <div className="card">
+          <div className="section-header" style={{ marginBottom: '1rem' }}>
+            <h2>Invalid Student ID</h2>
+            <p>No valid student ID provided.</p>
+          </div>
+          <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+            <Link href="/students" className="secondary">
+              Back to student list
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [student, classes, promotionHistory, user] = await Promise.all([
-    getStudentById(params.studentId),
+    getStudentById(studentId),
     getClasses(),
-    getPromotionHistory(params.studentId),
+    getPromotionHistory(studentId),
     getSessionUserProfile(),
   ]);
 
-  console.log('FETCHED STUDENT:', { studentId: params.studentId, student });
+  console.log('FETCHED STUDENT:', { studentId, student });
 
   if (!student) {
     return (
@@ -34,7 +60,7 @@ export default async function StudentProfilePage({ params }: { params: { student
     );
   }
 
-  const feeOverview = user?.role === 'OWNER' ? await getStudentFeeOverview(params.studentId) : null;
+  const feeOverview = user?.role === 'OWNER' ? await getStudentFeeOverview(studentId) : null;
 
   return (
     <div className="grid">
