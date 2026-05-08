@@ -87,7 +87,7 @@ const createClassSchema = z.object({
 });
 
 const createTeacherSchema = z.object({
-  full_name: z.string().min(1),
+  full_name: z.string().optional(),
   email: z.string().email(),
   password: z.string().min(6),
   role: z.enum(['OWNER', 'TEACHER']),
@@ -504,7 +504,7 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
-      role: parsed.data.role as 'OWNER' | 'TEACHER',
+      role: 'TEACHER',
       is_active: true,
     });
     if (profileError) throw profileError;

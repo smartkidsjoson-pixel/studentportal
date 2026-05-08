@@ -56,10 +56,10 @@ export default async function FeesPage() {
                     <td>{structure.class_name}</td>
                     <td>{structure.academic_year}</td>
                     <td>{structure.term.replace('_', ' ')}</td>
-                    <td>{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(structure.expected_amount)}</td>
+                    <td>{Number(structure.expected_amount ?? 0).toLocaleString()}</td>
                     <td>{structure.account_count}</td>
-                    <td>{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(structure.total_collected)}</td>
-                    <td>{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 2 }).format(structure.total_outstanding)}</td>
+                    <td>{Number(structure.total_collected ?? 0).toLocaleString()}</td>
+                    <td>{Number(structure.total_outstanding ?? 0).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
