@@ -43,11 +43,29 @@ export function StudentFeeSection({
   );
 
   useEffect(() => {
+    console.log('StudentFeeSection loaded with data:', { studentId, accounts, payments });
+    console.log('Accounts count:', accounts.length);
+    accounts.forEach((acc, idx) => {
+      console.log(`Account ${idx}:`, {
+        id: acc.id,
+        expected_amount: acc.expected_amount,
+        total_paid: acc.total_paid,
+        balance: acc.balance,
+        academic_year: acc.academic_year,
+        term: acc.term,
+      });
+    });
+  }, [studentId, accounts, payments]);
+
+  useEffect(() => {
     if (recordState.success) {
       recordFormRef.current?.reset();
       setShowRecordForm(false);
     }
-  }, [recordState.success]);
+    if (recordState.error) {
+      console.error('Payment recording error:', recordState.error);
+    }
+  }, [recordState.success, recordState.error]);
 
   const totals = useMemo(() => {
     const expected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
@@ -118,8 +136,12 @@ export function StudentFeeSection({
             </div>
             <div className="form-actions">
               <button type="submit" disabled={recordPending}>{recordPending ? 'Saving...' : 'Save payment'}</button>
-              {recordState.error ? <span className="muted">{recordState.error}</span> : null}
-              {recordState.success ? <span className="muted">{recordState.success}</span> : null}
+              {recordState.error ? (
+                <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                  ❌ {recordState.error}
+                </span>
+              ) : null}
+              {recordState.success ? <span style={{ color: '#388e3c', fontWeight: 'bold' }}>✓ {recordState.success}</span> : null}
             </div>
           </form>
         ) : (
