@@ -675,17 +675,23 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
     }
     
     console.log('Proceeding with payment insertion...');
-    console.log('Payload:', {
+    const paymentPayload: any = {
       student_fee_account_id: parsed.data.student_fee_account_id,
       amount: parsed.data.amount,
       receipt_number: parsed.data.receipt_number,
-    });
+    };
     
-    const { error, data } = await supabase.from('fee_payments').insert({
-      student_fee_account_id: parsed.data.student_fee_account_id,
-      amount: parsed.data.amount,
-      receipt_number: parsed.data.receipt_number,
-    }).select();
+    // Add optional fields if present in form data
+    if (cleanData.payment_method) {
+      paymentPayload.payment_method = cleanData.payment_method;
+    }
+    if (cleanData.fee_ledger_id) {
+      paymentPayload.fee_ledger_id = cleanData.fee_ledger_id;
+    }
+    
+    console.log('Payload:', paymentPayload);
+    
+    const { error, data } = await supabase.from('fee_payments').insert(paymentPayload).select();
     
     console.log('Supabase response - data:', data);
     console.log('Supabase response - error:', error);
@@ -750,12 +756,22 @@ export async function updateFeePaymentAction(_prevState: ActionState, formData: 
 
   try {
     const supabase = await createClient();
+    const updatePayload: any = {
+      amount: parsed.data.amount,
+      receipt_number: parsed.data.receipt_number,
+    };
+    
+    // Add optional fields if present in form data
+    if (cleanData.payment_method) {
+      updatePayload.payment_method = cleanData.payment_method;
+    }
+    if (cleanData.fee_ledger_id) {
+      updatePayload.fee_ledger_id = cleanData.fee_ledger_id;
+    }
+    
     const { error } = await supabase
       .from('fee_payments')
-      .update({
-        amount: parsed.data.amount,
-        receipt_number: parsed.data.receipt_number,
-      })
+      .update(updatePayload)
       .eq('id', parsed.data.payment_id);
     if (error) throw error;
   } catch (e) {

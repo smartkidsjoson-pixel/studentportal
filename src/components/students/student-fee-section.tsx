@@ -70,6 +70,19 @@ export function StudentFeeSection({
     }
   }, [recordState.success, recordState.error, router]);
 
+  useEffect(() => {
+    if (updateState.success) {
+      setEditingPaymentId(null);
+      router.refresh(); // Ensure UI updates immediately after payment update
+    }
+  }, [updateState.success, router]);
+
+  useEffect(() => {
+    if (deleteState.success) {
+      router.refresh(); // Ensure UI updates immediately after payment deletion
+    }
+  }, [deleteState.success, router]);
+
   const totals = useMemo(() => {
     const expected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
     const paid = accounts.reduce((sum, account) => sum + Number(account.total_paid ?? 0), 0);
