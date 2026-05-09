@@ -555,9 +555,7 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
 
         const { error: accountError } = await supabase
           .from('student_fee_accounts')
-          .insert(createPayload)
-          .onConflict('(student_id, fee_structure_id)')
-          .ignore();
+          .upsert(createPayload, { onConflict: 'student_id,fee_structure_id' });
 
         if (accountError) {
           console.warn('Fee accounts fallback creation failed:', accountError.message);
@@ -707,6 +705,8 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
       amount: data[0].amount,
       receipt: data[0].receipt_number,
       date: data[0].payment_date,
+      created_by: data[0].created_by,
+      updated_by: data[0].updated_by,
     });
   } catch (e) {
     console.error('=== PAYMENT RECORDING FAILED ===');

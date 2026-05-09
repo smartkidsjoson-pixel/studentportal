@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useActionState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
   deleteFeePaymentAction,
@@ -30,6 +31,7 @@ export function StudentFeeSection({
   accounts: StudentFeeAccountSummary[];
   payments: FeePaymentHistoryItem[];
 }) {
+  const router = useRouter();
   const [showRecordForm, setShowRecordForm] = useState(false);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [recordState, recordAction, recordPending] = useActionState(recordFeePaymentAction, initialState);
@@ -61,11 +63,12 @@ export function StudentFeeSection({
     if (recordState.success) {
       recordFormRef.current?.reset();
       setShowRecordForm(false);
+      router.refresh(); // Ensure UI updates immediately
     }
     if (recordState.error) {
       console.error('Payment recording error:', recordState.error);
     }
-  }, [recordState.success, recordState.error]);
+  }, [recordState.success, recordState.error, router]);
 
   const totals = useMemo(() => {
     const expected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
