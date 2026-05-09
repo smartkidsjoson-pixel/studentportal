@@ -307,48 +307,78 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
     console.error('Error in defensive fee account check:', e);
   }
 
-  const [accountsResponse, paymentsResponse] = await Promise.all([
-    supabase
-      .from('student_fee_accounts_overview')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('academic_year', { ascending: false })
-      .order('term', { ascending: true }),
-    supabase
-      .from('fee_payment_history')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('payment_date', { ascending: false }),
-  ]);
+  // Fetch fee accounts with proper expected amounts
+  const { data: rawAccounts, error: accountsError } = await supabase
+    .from('student_fee_accounts')
+    .select(`
+      id,
+      student_id,
+      fee_structure_id,
+      expected_amount,
+      fee_structures!inner(
+        academic_year,
+        term,
+        expected_amount,
+        classes!inner(name)
+      )
+    `)
+    .eq('student_id', studentId);
 
-  console.log('Fee accounts response:', {
-    count: accountsResponse.data?.length,
-    error: accountsResponse.error,
-    data: accountsResponse.data,
-  });
-  console.log('Payments response:', {
-    count: paymentsResponse.data?.length,
-    error: paymentsResponse.error,
-    data: paymentsResponse.data,
-  });
-
-  if (accountsResponse.error) {
-    console.error('ERROR fetching fee accounts:', accountsResponse.error);
-  }
-  if (paymentsResponse.error) {
-    console.error('ERROR fetching fee payments:', paymentsResponse.error);
+  if (accountsError) {
+    console.error('ERROR fetching fee accounts:', accountsError);
+    return { accounts: [], payments: [] };
   }
 
-  const result = {
-    accounts: accountsResponse.data ?? [],
-    payments: paymentsResponse.data ?? [],
+  // Fetch all payments for this student
+  const { data: payments, error: paymentsError } = await supabase
+    .from('fee_payment_history')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('payment_date', { ascending: false });
+
+  if (paymentsError) {
+    console.error('ERROR fetching fee payments:', paymentsError);
+    return { accounts: [], payments: [] };
+  }
+
+  // Calculate accounts with proper totals
+  const accounts: StudentFeeAccountSummary[] = (rawAccounts ?? []).map((account: any) => {
+    // Get expected amount with fallback
+    const expectedAmount = account.expected_amount && Number(account.expected_amount) > 0
+      ? Number(account.expected_amount)
+      : Number(account.fee_structures?.expected_amount ?? 0);
+
+    // Calculate total paid by summing payments for this account
+    const totalPaid = (payments ?? [])
+      .filter(payment => payment.student_fee_account_id === account.id)
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+
+    const balance = expectedAmount - totalPaid;
+    const status = balance <= 0 ? 'Cleared' : totalPaid > 0 ? 'Partial' : 'Not Paid';
+
+    return {
+      id: account.id,
+      student_id: account.student_id,
+      fee_structure_id: account.fee_structure_id,
+      academic_year: account.fee_structures?.academic_year ?? '',
+      term: account.fee_structures?.term ?? 'TERM_1',
+      class_name: account.fee_structures?.classes?.name ?? null,
+      expected_amount: expectedAmount,
+      total_paid: totalPaid,
+      balance: balance,
+      status: status as 'Cleared' | 'Partial' | 'Not Paid',
+    };
+  });
+
+  console.log('Calculated accounts:', accounts);
+  console.log('Payments:', payments);
+  
+  console.log('=== GET STUDENT FEE OVERVIEW END ===\n');
+  
+  return {
+    accounts,
+    payments: payments ?? [],
   };
-  
-  console.log('=== GET STUDENT FEE OVERVIEW END ===');
-  console.log('Returning accounts:', result.accounts);
-  console.log('\n');
-  
-  return result;
 }
 
 export async function getFeeDashboardStats(): Promise<FeeDashboardStats> {
