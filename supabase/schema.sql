@@ -79,18 +79,6 @@ create table if not exists public.students (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.student_enrollments (
-  id uuid primary key default gen_random_uuid(),
-  student_id uuid not null references public.students(id) on delete cascade,
-  class_id uuid references public.classes(id) on delete set null,
-  status public.student_status not null,
-  from_class_id uuid references public.classes(id) on delete set null,
-  to_class_id uuid references public.classes(id) on delete set null,
-  enrolled_at timestamptz not null default timezone('utc', now()),
-  created_by uuid references public.profiles(id),
-  notes text
-);
-
 create table if not exists public.fee_structures (
   id uuid primary key default gen_random_uuid(),
   class_id uuid not null references public.classes(id) on delete cascade,
@@ -120,6 +108,17 @@ create table if not exists public.fee_payments (
   recorded_by uuid references public.profiles(id),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.student_transitions (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  old_status public.student_status,
+  new_status public.student_status not null,
+  transition_reason text,
+  transition_data jsonb,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default timezone('utc', now())
 );
 
 create table if not exists public.marks (
@@ -215,24 +214,6 @@ begin
 end;
 $$;
 
-create or replace function public.record_student_enrollment()
-returns trigger
-language plpgsql
-as $$
-begin
-  if tg_op = 'INSERT' then
-    insert into public.student_enrollments(student_id, class_id, status, from_class_id, to_class_id, enrolled_at, created_by)
-    values (new.id, new.class_id, new.status, null, new.class_id, timezone('utc', now()), auth.uid());
-  elsif tg_op = 'UPDATE' then
-    if new.class_id is distinct from old.class_id or new.status is distinct from old.status then
-      insert into public.student_enrollments(student_id, class_id, status, from_class_id, to_class_id, enrolled_at, created_by)
-      values (new.id, new.class_id, new.status, old.class_id, new.class_id, timezone('utc', now()), auth.uid());
-    end if;
-  end if;
-  return new;
-end;
-$$;
-
 create or replace function public.promote_students(current_class_id uuid, student_ids uuid[])
 returns void
 language plpgsql
@@ -280,12 +261,65 @@ begin
     where id = any(student_ids)
       and class_id = current_class_id
       and status = 'active';
+
+    insert into public.student_transitions(
+      student_id,
+      old_status,
+      new_status,
+      transition_reason,
+      transition_data,
+      created_by,
+      created_at
+    )
+    select
+      s.id,
+      'active',
+      'graduated',
+      'Promoted to graduated',
+      jsonb_build_object(
+        'from_class_id', current_class_id,
+        'from_class_name', current_class.name,
+        'to_class_name', 'Graduated'
+      ),
+      auth.uid(),
+      timezone('utc', now())
+    from public.students s
+    where s.id = any(student_ids)
+      and s.class_id = current_class_id
+      and s.status = 'active';
   else
     update public.students
     set class_id = next_class.id
     where id = any(student_ids)
       and class_id = current_class_id
       and status = 'active';
+
+    insert into public.student_transitions(
+      student_id,
+      old_status,
+      new_status,
+      transition_reason,
+      transition_data,
+      created_by,
+      created_at
+    )
+    select
+      s.id,
+      'active',
+      'active',
+      'Promoted to next class',
+      jsonb_build_object(
+        'from_class_id', current_class_id,
+        'to_class_id', next_class.id,
+        'from_class_name', current_class.name,
+        'to_class_name', next_class.name
+      ),
+      auth.uid(),
+      timezone('utc', now())
+    from public.students s
+    where s.id = any(student_ids)
+      and s.class_id = next_class.id
+      and s.status = 'active';
   end if;
 end;
 $$;
@@ -362,11 +396,6 @@ drop trigger if exists student_fee_accounts_for_student on public.students;
 create trigger student_fee_accounts_for_student
 after insert or update on public.students
 for each row execute procedure public.create_student_fee_accounts_for_student();
-
-drop trigger if exists student_enrollment_record on public.students;
-create trigger student_enrollment_record
-after insert or update on public.students
-for each row execute procedure public.record_student_enrollment();
 
 drop trigger if exists fee_structure_account_creation on public.fee_structures;
 create trigger fee_structure_account_creation
@@ -601,51 +630,39 @@ left join (
   group by student_id
 ) f on f.student_id = s.id;
 
-create or replace function public.teacher_can_access_student_enrollment(target_student_id uuid)
-returns boolean
-language sql
-stable
-as $$
-  select public.can_access_student(target_student_id)
-$$;
-
 create or replace view public.student_promotion_history as
 select
-  se.id,
-  se.student_id,
-  se.enrolled_at as promoted_at,
-  se.status,
-  se.from_class_id,
-  fc.name as from_class_name,
-  se.to_class_id,
-  tc.name as to_class_name,
-  se.created_by as promoted_by,
-  se.notes
-from public.student_enrollments se
-left join public.classes fc on fc.id = se.from_class_id
-left join public.classes tc on tc.id = se.to_class_id
-where se.from_class_id is not null or se.status <> 'active';
+  st.id,
+  st.student_id,
+  st.created_at as promoted_at,
+  st.transition_data ->> 'from_class_name' as from_class_name,
+  st.transition_data ->> 'to_class_name' as to_class_name,
+  st.transition_data ->> 'transition_reason' as status,
+  st.created_by as promoted_by
+from public.student_transitions st
+where st.transition_data ? 'from_class_id'
+and st.transition_data ? 'to_class_name'
+order by st.created_at desc;
 
 create or replace view public.promotion_log_overview as
 select
-  se.id,
-  se.student_id,
+  st.id,
+  st.student_id,
   s.full_name,
-  se.enrolled_at as promoted_at,
-  fc.name as from_class_name,
-  tc.name as to_class_name,
+  st.created_at as promoted_at,
+  st.transition_data ->> 'from_class_name' as from_class_name,
+  st.transition_data ->> 'to_class_name' as to_class_name,
   p.full_name as promoted_by,
-  se.status
-from public.student_enrollments se
-join public.students s on s.id = se.student_id
-left join public.classes fc on fc.id = se.from_class_id
-left join public.classes tc on tc.id = se.to_class_id
-left join public.profiles p on p.id = se.created_by
-where se.from_class_id is not null or se.status <> 'active'
-order by se.enrolled_at desc;
+  st.new_status as status
+from public.student_transitions st
+join public.students s on s.id = st.student_id
+left join public.profiles p on p.id = st.created_by
+where st.transition_data ? 'from_class_id'
+and st.transition_data ? 'to_class_name'
+order by st.created_at desc;
 
 alter table public.students enable row level security;
-alter table public.student_enrollments enable row level security;
+alter table public.student_transitions enable row level security;
 
 create policy owner_full_access_on_students
   on public.students
@@ -673,22 +690,6 @@ create policy owner_delete_students
   on public.students
   for delete
   using (public.is_owner());
-
-create policy owner_full_access_on_student_enrollments
-  on public.student_enrollments
-  for all
-  using (public.is_owner())
-  with check (public.is_owner());
-
-create policy teacher_select_student_enrollments
-  on public.student_enrollments
-  for select
-  using (public.teacher_can_access_student_enrollment(student_id));
-
-create policy teacher_modify_student_enrollments
-  on public.student_enrollments
-  for insert, update
-  with check (public.is_owner() or public.teacher_can_access_student_enrollment(student_id));
 
 create or replace view public.class_overview as
 select

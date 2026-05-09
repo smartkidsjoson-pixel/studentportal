@@ -8,11 +8,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="page-shell">
-      <Sidebar schoolName="School MIS" userRole={user.role} />
+      <Sidebar schoolName="Joson's SmartKids Academy" userRole={user.role} />
       <main className="main-content">
         <div className="topbar">
           <div>
-            <h2>School Management System</h2>
+            <h2>Joson's SmartKids Academy</h2>
             <p>{user.fullName ?? user.email} | {user.role}</p>
           </div>
         </div>

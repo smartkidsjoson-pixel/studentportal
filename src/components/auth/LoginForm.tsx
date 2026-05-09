@@ -15,21 +15,22 @@ export default function LoginForm() {
         <label htmlFor="email" className="label">
           Email address
         </label>
-        <input id="email" name="email" type="email" placeholder="you@school.edu" required />
+        <input id="email" name="email" type="email" placeholder="admin@smartkids.academy" required className="form-input" />
       </div>
 
       <div>
         <label htmlFor="password" className="label">
           Password
         </label>
-        <input id="password" name="password" type="password" placeholder="••••••••" required minLength={6} />
+        <input id="password" name="password" type="password" placeholder="Enter your password" required minLength={6} className="form-input" />
       </div>
 
+      {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+
       <div className="space-y-3">
-        <button type="submit" disabled={pending} className="w-full">
+        <button type="submit" disabled={pending} className="primary-btn w-full">
           {pending ? 'Signing in…' : 'Sign in'}
         </button>
-        {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
       </div>
     </form>
   );

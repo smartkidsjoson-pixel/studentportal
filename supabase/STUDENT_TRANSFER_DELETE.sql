@@ -184,9 +184,6 @@ BEGIN
     DELETE FROM public.marks
     WHERE student_id = student_id_in;
 
-    DELETE FROM public.student_enrollments
-    WHERE student_id = student_id_in;
-
     DELETE FROM public.students
     WHERE id = student_id_in;
 

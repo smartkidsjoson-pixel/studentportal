@@ -75,7 +75,7 @@ async function ensureStudentFeeAccountsExist(studentId: string, supabase: any): 
       .from('students')
       .select('class_id, status')
       .eq('id', studentId)
-      .single();
+      .maybeSingle();
     
     if (studentError || !student || !student.class_id) {
       const msg = `Cannot find student or student has no class assigned: ${studentError?.message || 'No class'}`;
@@ -357,8 +357,19 @@ export async function createStudentAction(_prevState: ActionState, formData: For
       status: parsed.data.status,
     };
 
-    const { error } = await supabase.from('students').insert(payload);
-    if (error) throw error;
+    const { data: newStudent, error: insertError } = await supabase
+      .from('students')
+      .insert(payload)
+      .select('id')
+      .maybeSingle();
+    if (insertError) throw insertError;
+
+    if (newStudent?.id) {
+      const feeAccountResult = await ensureStudentFeeAccountsExist(newStudent.id, supabase);
+      if (feeAccountResult.errors.length > 0) {
+        console.warn('Warning: Some student fee accounts could not be created automatically.', feeAccountResult.errors);
+      }
+    }
   } catch (e) {
     return handleActionError(e);
   }
@@ -441,6 +452,11 @@ export async function updateStudentAction(_prevState: ActionState, formData: For
       .eq('id', parsed.data.student_id);
 
     if (error) throw error;
+
+    const feeAccountResult = await ensureStudentFeeAccountsExist(parsed.data.student_id, supabase);
+    if (feeAccountResult.errors.length > 0) {
+      console.warn('Warning: Student fee accounts may require manual review after update.', feeAccountResult.errors);
+    }
   } catch (e) {
     return handleActionError(e);
   }
@@ -513,7 +529,7 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
       academic_year: parsed.data.academic_year,
       term: parsed.data.term,
       expected_amount: parsed.data.expected_amount,
-    }).select();
+    }).select('id, class_id');
     
     console.log('Response - data:', data);
     console.log('Response - error:', error);
@@ -523,6 +539,32 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
       throw error;
     }
     
+    if (data && data[0]?.class_id) {
+      const { data: students, error: studentError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('class_id', data[0].class_id)
+        .eq('status', 'active');
+
+      if (!studentError && students?.length) {
+        const createPayload = students.map((student) => ({
+          student_id: student.id,
+          fee_structure_id: data[0].id,
+          expected_amount: parsed.data.expected_amount,
+        }));
+
+        const { error: accountError } = await supabase
+          .from('student_fee_accounts')
+          .insert(createPayload)
+          .onConflict('(student_id, fee_structure_id)')
+          .ignore();
+
+        if (accountError) {
+          console.warn('Fee accounts fallback creation failed:', accountError.message);
+        }
+      }
+    }
+
     console.log('Fee structure created! Trigger should auto-create student fee accounts...');
   } catch (e) {
     console.error('=== FEE STRUCTURE CREATION FAILED ===');
