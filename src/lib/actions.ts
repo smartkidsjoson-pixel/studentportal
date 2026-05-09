@@ -14,29 +14,166 @@ type ActionState = {
 };
 
 function handleActionError(error: unknown): ActionState {
-  console.error(error);
+  console.error('=== ACTION ERROR DETAILS ===');
+  console.error('Full error object:', error);
+  
+  if (error instanceof Error) {
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+  }
+  
+  let detailedMessage = 'An error occurred. Please try again.';
 
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
-
-    if (message.includes('invalid login') || message.includes('invalid password') || message.includes('credentials')) {
-      return { error: 'Invalid login credentials' };
-    }
-    if (message.includes('duplicate') || message.includes('already exists') || message.includes('unique')) {
-      return { error: 'Record already exists. Please check and try again.' };
-    }
-    if (message.includes('not found')) {
-      return { error: 'Resource not found. Please try again.' };
-    }
-    if (message.includes('invalid')) {
-      return { error: 'Invalid input provided. Please check your data.' };
-    }
-    if (message.includes('unauthorized') || message.includes('permission')) {
-      return { error: 'You do not have permission to perform this action.' };
+    
+    // Expose actual database error details
+    if (error.message.includes('duplicate') || message.includes('unique violation')) {
+      detailedMessage = `Duplicate record: ${error.message}`;
+    } else if (error.message.includes('foreign key')) {
+      detailedMessage = `Cannot delete: Record is referenced elsewhere. ${error.message}`;
+    } else if (error.message.includes('check constraint')) {
+      detailedMessage = `Invalid value: ${error.message}`;
+    } else if (error.message.includes('not found') || error.message.includes('no rows')) {
+      detailedMessage = `Not found: ${error.message}`;
+    } else if (error.message.includes('permission denied')) {
+      detailedMessage = `Permission denied: ${error.message}`;
+    } else if (message.includes('invalid login') || message.includes('invalid password') || message.includes('credentials')) {
+      detailedMessage = 'Invalid login credentials';
+    } else if (message.includes('unauthorized')) {
+      detailedMessage = `Unauthorized: ${error.message}`;
+    } else {
+      detailedMessage = `Error: ${error.message}`;
     }
   }
+  
+  console.error('=== ERROR SUMMARY ===');
+  console.error(detailedMessage);
+  console.error('====================');
+  
+  return { error: detailedMessage };
+}
 
-  return { error: 'An error occurred. Please try again.' };
+/**
+ * DEFENSIVE PROGRAMMING: Ensure student fee accounts exist and have correct expected_amount
+ * This is a backup mechanism if database triggers fail to create accounts
+ */
+async function ensureStudentFeeAccountsExist(studentId: string, supabase: any): Promise<{
+  success: number;
+  created: number;
+  errors: string[];
+}> {
+  console.log('\n=== ENSURING STUDENT FEE ACCOUNTS EXIST ===');
+  console.log('Student ID:', studentId);
+  
+  const result = { success: 0, created: 0, errors: [] };
+  
+  try {
+    // Step 1: Get student's current class
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('class_id, status')
+      .eq('id', studentId)
+      .single();
+    
+    if (studentError || !student || !student.class_id) {
+      const msg = `Cannot find student or student has no class assigned: ${studentError?.message || 'No class'}`;
+      console.error(msg);
+      result.errors.push(msg);
+      return result;
+    }
+    
+    console.log('Student found:', { classId: student.class_id, status: student.status });
+    
+    // Step 2: Get all fee structures for student's class
+    const { data: feeStructures, error: fsError } = await supabase
+      .from('fee_structures')
+      .select('id, expected_amount, academic_year, term')
+      .eq('class_id', student.class_id);
+    
+    if (fsError) {
+      const msg = `Error fetching fee structures: ${fsError.message}`;
+      console.error(msg);
+      result.errors.push(msg);
+      return result;
+    }
+    
+    console.log(`Found ${feeStructures?.length || 0} fee structures for this class`);
+    
+    if (!feeStructures || feeStructures.length === 0) {
+      console.log('No fee structures exist for this class yet');
+      return result;
+    }
+    
+    // Step 3: For each fee structure, check if account exists and has correct amount
+    for (const fs of feeStructures) {
+      console.log(`Checking fee structure: ${fs.academic_year} ${fs.term} (expected: KES ${fs.expected_amount})`);
+      
+      const { data: existingAccount, error: checkError } = await supabase
+        .from('student_fee_accounts')
+        .select('id, expected_amount')
+        .eq('student_id', studentId)
+        .eq('fee_structure_id', fs.id)
+        .maybeSingle();
+      
+      if (checkError && checkError.message !== 'Results contain 0 rows') {
+        const msg = `Error checking fee account: ${checkError.message}`;
+        console.error(msg);
+        result.errors.push(msg);
+        continue;
+      }
+      
+      if (existingAccount) {
+        console.log(`Account exists with expected_amount: ${existingAccount.expected_amount}`);
+        if (existingAccount.expected_amount === 0 || existingAccount.expected_amount === '0') {
+          console.warn(`FIXING: Account has zero expected_amount, updating to ${fs.expected_amount}`);
+          const { error: updateError } = await supabase
+            .from('student_fee_accounts')
+            .update({ expected_amount: fs.expected_amount })
+            .eq('id', existingAccount.id);
+          
+          if (updateError) {
+            const msg = `Error updating account amount: ${updateError.message}`;
+            console.error(msg);
+            result.errors.push(msg);
+          } else {
+            console.log(`FIXED: Updated expected_amount for account`);
+            result.success++;
+          }
+        } else {
+          result.success++;
+        }
+      } else {
+        console.log(`Account MISSING - creating new account with expected_amount: ${fs.expected_amount}`);
+        const { error: createError, data: newAccount } = await supabase
+          .from('student_fee_accounts')
+          .insert({
+            student_id: studentId,
+            fee_structure_id: fs.id,
+            expected_amount: fs.expected_amount,
+          })
+          .select();
+        
+        if (createError) {
+          const msg = `Error creating fee account: ${createError.message}`;
+          console.error(msg);
+          result.errors.push(msg);
+        } else {
+          console.log(`CREATED: Account ${newAccount?.[0]?.id}`);
+          result.created++;
+        }
+      }
+    }
+  } catch (e) {
+    const msg = `Unexpected error in ensureStudentFeeAccountsExist: ${e instanceof Error ? e.message : String(e)}`;
+    console.error(msg);
+    result.errors.push(msg);
+  }
+  
+  console.log('Fee accounts ensure complete - Success:', result.success, 'Created:', result.created, 'Errors:', result.errors.length);
+  
+  return result;
 }
 
 const loginSchema = z.object({
@@ -343,6 +480,7 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
 }
 
 export async function createFeeStructureAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  console.log('\n=== CREATE FEE STRUCTURE ACTION START ===');
   await requireOwner();
 
   const parsed = createFeeStructureSchema.safeParse({
@@ -352,38 +490,67 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
     expected_amount: formData.get('expected_amount'),
   });
 
+  console.log('Fee structure form data:', Object.fromEntries(formData.entries()));
+  console.log('Parsed fee structure:', parsed.data);
+
   if (!parsed.success) {
+    console.error('Validation failed:', parsed.error.errors);
     return { error: parsed.error.errors[0]?.message ?? 'Provide valid fee structure details.' };
   }
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('fee_structures').insert({
+    console.log('Inserting fee structure...');
+    console.log('Payload:', {
       class_id: parsed.data.class_id,
       academic_year: parsed.data.academic_year,
       term: parsed.data.term,
       expected_amount: parsed.data.expected_amount,
     });
-    if (error) throw error;
+    
+    const { error, data } = await supabase.from('fee_structures').insert({
+      class_id: parsed.data.class_id,
+      academic_year: parsed.data.academic_year,
+      term: parsed.data.term,
+      expected_amount: parsed.data.expected_amount,
+    }).select();
+    
+    console.log('Response - data:', data);
+    console.log('Response - error:', error);
+    
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+    
+    console.log('Fee structure created! Trigger should auto-create student fee accounts...');
   } catch (e) {
+    console.error('=== FEE STRUCTURE CREATION FAILED ===');
     return handleActionError(e);
   }
 
+  console.log('Revalidating paths...');
   revalidatePath('/fees');
   revalidatePath('/dashboard');
+  console.log('=== CREATE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
   return { success: 'Fee structure created successfully.' };
-}
+
 
 export async function recordFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  console.log('\n=== RECORD FEE PAYMENT ACTION START ===');
+  
   await requireOwner();
 
   // Strip numeric prefixes (e.g., '1_' from keys like '1_amount', '0_receipt_number')
   const rawData = Object.fromEntries(formData.entries());
+  console.log('Raw form data:', rawData);
+  
   const cleanData: Record<string, any> = {};
   for (const key in rawData) {
     const cleanKey = key.replace(/^\d+_/, '');
     cleanData[cleanKey] = rawData[key];
   }
+  console.log('Cleaned form data:', cleanData);
 
   const parsed = recordFeePaymentSchema.safeParse({
     student_fee_account_id: String(cleanData.student_fee_account_id ?? ''),
@@ -392,30 +559,91 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
   });
 
   if (!parsed.success) {
+    console.error('Validation failed:', parsed.error.errors);
     return { error: parsed.error.errors[0]?.message ?? 'Provide valid payment details.' };
   }
 
+  console.log('Parsed payment data:', parsed.data);
   const studentId = String(cleanData.student_id ?? '');
+  console.log('Student ID:', studentId);
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('fee_payments').insert({
+    
+    // PRE-FLIGHT CHECK: Verify fee account exists and has valid expected_amount
+    console.log('Pre-flight check: Verifying fee account...');
+    const { data: feeAccount, error: accountError } = await supabase
+      .from('student_fee_accounts')
+      .select('id, expected_amount, fee_structure_id')
+      .eq('id', parsed.data.student_fee_account_id)
+      .single();
+    
+    if (accountError || !feeAccount) {
+      const msg = `Fee account not found: ${accountError?.message || 'Invalid account ID'}`;
+      console.error(msg);
+      throw new Error(msg);
+    }
+    
+    console.log('Fee account found:', {
+      accountId: feeAccount.id,
+      expected_amount: feeAccount.expected_amount,
+    });
+    
+    if (feeAccount.expected_amount === 0 || feeAccount.expected_amount === '0') {
+      console.warn('WARNING: Fee account has zero expected_amount!');
+      // Attempt to fetch the fee structure and fix it
+      const { data: feeStructure } = await supabase
+        .from('fee_structures')
+        .select('expected_amount')
+        .eq('id', feeAccount.fee_structure_id)
+        .single();
+      
+      if (feeStructure && feeStructure.expected_amount > 0) {
+        console.log(`Attempting to fix zero amount with structure amount: ${feeStructure.expected_amount}`);
+        await supabase
+          .from('student_fee_accounts')
+          .update({ expected_amount: feeStructure.expected_amount })
+          .eq('id', feeAccount.id);
+      }
+    }
+    
+    console.log('Attempting to insert payment into fee_payments table...');
+    console.log('Payload:', {
       student_fee_account_id: parsed.data.student_fee_account_id,
       amount: parsed.data.amount,
       receipt_number: parsed.data.receipt_number,
     });
-    if (error) throw error;
+    
+    const { error, data } = await supabase.from('fee_payments').insert({
+      student_fee_account_id: parsed.data.student_fee_account_id,
+      amount: parsed.data.amount,
+      receipt_number: parsed.data.receipt_number,
+    }).select();
+    
+    console.log('Supabase response - data:', data);
+    console.log('Supabase response - error:', error);
+    
+    if (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
+    
+    console.log('Payment inserted successfully!');
   } catch (e) {
+    console.error('=== PAYMENT RECORDING FAILED ===');
     return handleActionError(e);
   }
 
+  console.log('Revalidating paths...');
   if (studentId) {
     revalidatePath(`/students/${studentId}`);
   }
   revalidatePath('/fees');
   revalidatePath('/dashboard');
+  
+  console.log('=== RECORD FEE PAYMENT ACTION END (SUCCESS) ===\n');
   return { success: 'Payment recorded successfully.' };
-}
+
 
 export async function updateFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
@@ -662,4 +890,138 @@ export async function promoteStudentsAction(formData: FormData): Promise<void> {
   revalidatePath('/students');
   revalidatePath('/promotions');
   redirect('/promotions');
+}
+
+const transferStudentSchema = z.object({
+  student_id: z.string().uuid('Invalid student ID'),
+  transfer_to_school: z.string().min(2, 'School name required'),
+  transfer_reason: z.string().min(2, 'Reason required'),
+});
+
+export async function transferStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  console.log('\n=== TRANSFER STUDENT ACTION START ===');
+  await requireOwner();
+
+  const parsed = transferStudentSchema.safeParse({
+    student_id: String(formData.get('student_id') ?? ''),
+    transfer_to_school: String(formData.get('transfer_to_school') ?? '').trim(),
+    transfer_reason: String(formData.get('transfer_reason') ?? '').trim(),
+  });
+
+  if (!parsed.success) {
+    console.error('Transfer validation failed:', parsed.error.errors);
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid transfer details.' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const user = await requireSessionUser();
+
+    console.log('Calling transfer_student function with:', parsed.data);
+    const { data, error } = await supabase.rpc('transfer_student', {
+      student_id_in: parsed.data.student_id,
+      transfer_to_school: parsed.data.transfer_to_school,
+      transfer_reason_in: parsed.data.transfer_reason,
+      transferred_by: user.id,
+    });
+
+    console.log('Transfer response:', { data, error });
+
+    if (error) {
+      console.error('Transfer error:', error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      if (!result.success) {
+        console.warn('Transfer function returned error:', result.message);
+        return { error: result.message };
+      }
+    }
+  } catch (e) {
+    console.error('=== TRANSFER STUDENT FAILED ===');
+    return handleActionError(e);
+  }
+
+  console.log('Transfer successful, revalidating...');
+  revalidatePath('/students');
+  revalidatePath('/dashboard');
+  console.log('=== TRANSFER STUDENT ACTION END ===\n');
+  return { success: 'Student transferred successfully.' };
+}
+
+const deleteStudentSchema = z.object({
+  student_id: z.string().uuid('Invalid student ID'),
+  deletion_reason: z.string().min(2, 'Reason required'),
+});
+
+export async function deleteStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  console.log('\n=== DELETE STUDENT ACTION START ===');
+  await requireOwner();
+
+  const parsed = deleteStudentSchema.safeParse({
+    student_id: String(formData.get('student_id') ?? ''),
+    deletion_reason: String(formData.get('deletion_reason') ?? '').trim(),
+  });
+
+  if (!parsed.success) {
+    console.error('Delete validation failed:', parsed.error.errors);
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid deletion details.' };
+  }
+
+  try {
+    const supabase = await createClient();
+    
+    // First, get student details
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('id, full_name, status')
+      .eq('id', parsed.data.student_id)
+      .single();
+    
+    if (studentError || !student) {
+      throw new Error('Student not found');
+    }
+    
+    console.log('Student to delete:', { id: student.id, name: student.full_name, status: student.status });
+    
+    if (student.status === 'active') {
+      return { error: 'Cannot delete active student. Must transfer, mark as inactive, or wait for graduation first.' };
+    }
+    
+    const user = await requireSessionUser();
+
+    console.log('Calling delete_student_safe function...');
+    const { data, error } = await supabase.rpc('delete_student_safe', {
+      student_id_in: parsed.data.student_id,
+      deletion_reason: parsed.data.deletion_reason,
+      deleted_by_id: user.id,
+    });
+
+    console.log('Delete response:', { data, error });
+
+    if (error) {
+      console.error('Delete error:', error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      if (!result.success) {
+        console.warn('Delete function returned error:', result.message);
+        return { error: result.message };
+      }
+      console.log('Delete result:', result);
+    }
+  } catch (e) {
+    console.error('=== DELETE STUDENT FAILED ===');
+    return handleActionError(e);
+  }
+
+  console.log('Delete successful, revalidating...');
+  revalidatePath('/students');
+  revalidatePath('/dashboard');
+  console.log('=== DELETE STUDENT ACTION END ===\n');
+  return { success: 'Student record processed successfully.' };
 }

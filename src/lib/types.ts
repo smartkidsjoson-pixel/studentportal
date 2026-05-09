@@ -2,6 +2,29 @@
 export type StudentStatus = 'active' | 'transferred' | 'graduated' | 'inactive';
 export type StudentGender = 'male' | 'female' | 'other';
 
+export type StudentTransition = {
+  id: string;
+  student_id: string;
+  old_status: StudentStatus | null;
+  new_status: StudentStatus;
+  transition_reason: string | null;
+  transition_data: Record<string, any> | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type TransferStudentResult = {
+  success: boolean;
+  message: string;
+  student_id: string | null;
+};
+
+export type DeleteStudentResult = {
+  success: boolean;
+  message: string;
+  deleted_records: number;
+};
+
 export type SessionUser = {
   id: string;
   email: string;

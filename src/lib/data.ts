@@ -239,7 +239,59 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
   accounts: StudentFeeAccountSummary[];
   payments: FeePaymentHistoryItem[];
 }> {
+  console.log('\n=== GET STUDENT FEE OVERVIEW START ===');
+  console.log('Student ID:', studentId);
+  
   const supabase = await createClient();
+
+  // Before fetching, ensure fee accounts exist (defensive programming)
+  console.log('Running defensive fee account check...');
+  try {
+    // Get student to check if they have a class and fee structures
+    const { data: student } = await supabase
+      .from('students')
+      .select('class_id, status')
+      .eq('id', studentId)
+      .single();
+    
+    if (student?.class_id && student?.status === 'active') {
+      // Check if any fee accounts are missing or have zero expected_amount
+      const { data: feeStructures } = await supabase
+        .from('fee_structures')
+        .select('id, expected_amount')
+        .eq('class_id', student.class_id);
+      
+      if (feeStructures && feeStructures.length > 0) {
+        for (const fs of feeStructures) {
+          const { data: account } = await supabase
+            .from('student_fee_accounts')
+            .select('id, expected_amount')
+            .eq('student_id', studentId)
+            .eq('fee_structure_id', fs.id)
+            .maybeSingle();
+          
+          if (!account) {
+            // Create missing account
+            console.log(`Creating missing fee account for fee structure ${fs.id}`);
+            await supabase.from('student_fee_accounts').insert({
+              student_id: studentId,
+              fee_structure_id: fs.id,
+              expected_amount: fs.expected_amount,
+            });
+          } else if (account.expected_amount === 0 || account.expected_amount === '0') {
+            // Fix zero amount
+            console.log(`Fixing zero expected_amount in account ${account.id}`);
+            await supabase
+              .from('student_fee_accounts')
+              .update({ expected_amount: fs.expected_amount })
+              .eq('id', account.id);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error in defensive fee account check:', e);
+  }
 
   const [accountsResponse, paymentsResponse] = await Promise.all([
     supabase
@@ -255,28 +307,49 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
       .order('payment_date', { ascending: false }),
   ]);
 
+  console.log('Fee accounts response:', {
+    count: accountsResponse.data?.length,
+    error: accountsResponse.error,
+    data: accountsResponse.data,
+  });
+  console.log('Payments response:', {
+    count: paymentsResponse.data?.length,
+    error: paymentsResponse.error,
+    data: paymentsResponse.data,
+  });
+
   if (accountsResponse.error) {
-    console.error(accountsResponse.error);
+    console.error('ERROR fetching fee accounts:', accountsResponse.error);
   }
   if (paymentsResponse.error) {
-    console.error(paymentsResponse.error);
+    console.error('ERROR fetching fee payments:', paymentsResponse.error);
   }
 
-  return {
+  const result = {
     accounts: accountsResponse.data ?? [],
     payments: paymentsResponse.data ?? [],
   };
+  
+  console.log('=== GET STUDENT FEE OVERVIEW END ===');
+  console.log('Returning accounts:', result.accounts);
+  console.log('\n');
+  
+  return result;
 }
 
 export async function getFeeDashboardStats(): Promise<FeeDashboardStats> {
+  console.log('\n=== GET FEE DASHBOARD STATS START ===');
+  
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('fee_dashboard_overview')
     .select('*')
     .single();
 
+  console.log('Dashboard stats response:', { data, error });
+
   if (error) {
-    console.error(error);
+    console.error('ERROR fetching fee dashboard stats:', error);
     return {
       totalExpected: 0,
       totalCollected: 0,
