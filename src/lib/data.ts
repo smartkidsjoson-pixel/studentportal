@@ -248,11 +248,15 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
   console.log('Running defensive fee account check...');
   try {
     // Get student to check if they have a class and fee structures
-    const { data: student } = await supabase
+    const { data: student, error: studentError } = await supabase
       .from('students')
       .select('class_id, status')
       .eq('id', studentId)
-      .single();
+      .maybeSingle();
+    
+    if (studentError) {
+      console.error('Error fetching student:', studentError);
+    }
     
     if (student?.class_id && student?.status === 'active') {
       // Check if any fee accounts are missing or have zero expected_amount
@@ -272,19 +276,29 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
           
           if (!account) {
             // Create missing account
-            console.log(`Creating missing fee account for fee structure ${fs.id}`);
-            await supabase.from('student_fee_accounts').insert({
+            console.log(`Creating missing fee account for fee structure ${fs.id} with amount ${fs.expected_amount}`);
+            const { error: insertError } = await supabase.from('student_fee_accounts').insert({
               student_id: studentId,
               fee_structure_id: fs.id,
               expected_amount: fs.expected_amount,
             });
-          } else if (account.expected_amount === 0 || account.expected_amount === '0') {
+            if (insertError) {
+              console.error(`Error creating account: ${insertError.message}`);
+            } else {
+              console.log(`✓ Created missing fee account`);
+            }
+          } else if (account.expected_amount === 0 || account.expected_amount === '0' || Number(account.expected_amount) === 0) {
             // Fix zero amount
-            console.log(`Fixing zero expected_amount in account ${account.id}`);
-            await supabase
+            console.log(`⚠️ Fixing zero expected_amount in account ${account.id}, setting to ${fs.expected_amount}`);
+            const { error: updateError } = await supabase
               .from('student_fee_accounts')
               .update({ expected_amount: fs.expected_amount })
               .eq('id', account.id);
+            if (updateError) {
+              console.error(`Error updating account: ${updateError.message}`);
+            } else {
+              console.log(`✓ Fixed zero expected_amount`);
+            }
           }
         }
       }

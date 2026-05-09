@@ -571,43 +571,70 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
     const supabase = await createClient();
     
     // PRE-FLIGHT CHECK: Verify fee account exists and has valid expected_amount
+    // Using maybeSingle() instead of single() to handle missing accounts gracefully
     console.log('Pre-flight check: Verifying fee account...');
+    console.log('Looking for account ID:', parsed.data.student_fee_account_id);
+    
     const { data: feeAccount, error: accountError } = await supabase
       .from('student_fee_accounts')
-      .select('id, expected_amount, fee_structure_id')
+      .select('id, expected_amount, fee_structure_id, student_id')
       .eq('id', parsed.data.student_fee_account_id)
-      .single();
+      .maybeSingle();
     
-    if (accountError || !feeAccount) {
-      const msg = `Fee account not found: ${accountError?.message || 'Invalid account ID'}`;
+    if (accountError) {
+      console.error('Error fetching fee account:', accountError);
+      throw new Error(`Database error: ${accountError.message}`);
+    }
+    
+    if (!feeAccount) {
+      const msg = `❌ Fee account not found (ID: ${parsed.data.student_fee_account_id}). This should not happen - account should have been created when student was added.`;
       console.error(msg);
       throw new Error(msg);
     }
     
-    console.log('Fee account found:', {
+    console.log('✓ Fee account found:', {
       accountId: feeAccount.id,
+      studentId: feeAccount.student_id,
       expected_amount: feeAccount.expected_amount,
     });
     
-    if (feeAccount.expected_amount === 0 || feeAccount.expected_amount === '0') {
-      console.warn('WARNING: Fee account has zero expected_amount!');
-      // Attempt to fetch the fee structure and fix it
-      const { data: feeStructure } = await supabase
+    // DEFENSIVE: Fix zero expected_amount before allowing payment
+    let validFeeAccount = feeAccount;
+    if (feeAccount.expected_amount === 0 || feeAccount.expected_amount === '0' || Number(feeAccount.expected_amount) === 0) {
+      console.warn('⚠️ Fee account has zero expected_amount - attempting recovery from fee structure...');
+      
+      const { data: feeStructure, error: fsError } = await supabase
         .from('fee_structures')
         .select('expected_amount')
         .eq('id', feeAccount.fee_structure_id)
-        .single();
+        .maybeSingle();
       
-      if (feeStructure && feeStructure.expected_amount > 0) {
-        console.log(`Attempting to fix zero amount with structure amount: ${feeStructure.expected_amount}`);
-        await supabase
+      if (fsError) {
+        console.error('Error fetching fee structure:', fsError);
+        throw new Error(`Cannot recover expected_amount: ${fsError.message}`);
+      }
+      
+      if (feeStructure && feeStructure.expected_amount && Number(feeStructure.expected_amount) > 0) {
+        console.log(`🔧 Fixing zero amount - updating to ${feeStructure.expected_amount} from fee structure`);
+        const { error: updateError } = await supabase
           .from('student_fee_accounts')
           .update({ expected_amount: feeStructure.expected_amount })
           .eq('id', feeAccount.id);
+        
+        if (updateError) {
+          console.error('Error updating expected_amount:', updateError);
+          throw new Error(`Could not fix zero amount: ${updateError.message}`);
+        }
+        validFeeAccount.expected_amount = feeStructure.expected_amount;
+        console.log('✓ Fixed expected_amount successfully');
+      } else {
+        const msg = '❌ Fee structure not found or has zero amount. Cannot process payment.';
+        console.error(msg);
+        throw new Error(msg);
       }
     }
     
-    console.log('Attempting to insert payment into fee_payments table...');
+    console.log('Proceeding with payment insertion...');
     console.log('Payload:', {
       student_fee_account_id: parsed.data.student_fee_account_id,
       amount: parsed.data.amount,
@@ -625,10 +652,20 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
     
     if (error) {
       console.error('Supabase insert error:', error);
-      throw error;
+      throw new Error(`Payment insert failed: ${error.message}`);
     }
     
-    console.log('Payment inserted successfully!');
+    if (!data || data.length === 0) {
+      throw new Error('Payment inserted but no data returned');
+    }
+    
+    console.log('✓ Payment inserted successfully!');
+    console.log('Payment details:', {
+      paymentId: data[0].id,
+      amount: data[0].amount,
+      receipt: data[0].receipt_number,
+      date: data[0].payment_date,
+    });
   } catch (e) {
     console.error('=== PAYMENT RECORDING FAILED ===');
     return handleActionError(e);
