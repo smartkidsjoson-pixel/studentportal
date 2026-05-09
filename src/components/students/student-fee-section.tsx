@@ -84,16 +84,21 @@ export function StudentFeeSection({
   }, [deleteState.success, router]);
 
   const totals = useMemo(() => {
-    const expected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
-    const paid = accounts.reduce((sum, account) => sum + Number(account.total_paid ?? 0), 0);
-    const balance = expected - paid;
+    // Calculate total expected from accounts array
+    const totalExpected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
+    
+    // Calculate total collected directly from payments array (fail-safe)
+    const totalCollected = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+    
+    // Calculate balance as expected minus collected
+    const currentBalance = totalExpected - totalCollected;
 
     return {
-      expected,
-      paid,
-      balance,
+      expected: totalExpected,
+      collected: totalCollected,
+      balance: currentBalance,
     };
-  }, [accounts]);
+  }, [accounts, payments]);
 
   return (
     <div className="card">
@@ -110,7 +115,7 @@ export function StudentFeeSection({
         </div>
         <div className="card small-card">
           <h3>Collected</h3>
-          <div className="stat-value">{formatCurrency(totals.paid)}</div>
+          <div className="stat-value">{formatCurrency(totals.collected)}</div>
           <p className="muted">Payments posted for this student.</p>
         </div>
         <div className="card small-card">
