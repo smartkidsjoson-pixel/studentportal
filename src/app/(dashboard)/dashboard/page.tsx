@@ -27,12 +27,6 @@ export default async function DashboardPage() {
               <div className="stat-value">{stats.totalTeachers}</div>
               <p className="muted">Active staff accounts with school access.</p>
             </Card>
-            {stats.feeStats ? (
-              <Card title="Fee collection">
-                <div className="stat-value">{formatCurrency(stats.feeStats.totalCollected)}</div>
-                <p className="muted">Recent fee revenue recorded across the school.</p>
-              </Card>
-            ) : null}
           </>
         ) : null}
       </div>

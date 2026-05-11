@@ -90,7 +90,8 @@ async function ensureStudentFeeAccountsExist(studentId: string, supabase: any): 
     const { data: feeStructures, error: fsError } = await supabase
       .from('fee_structures')
       .select('id, expected_amount, academic_year, term')
-      .eq('class_id', student.class_id);
+      .eq('class_id', student.class_id)
+      .eq('archived', false);
     
     if (fsError) {
       const msg = `Error fetching fee structures: ${fsError.message}`;
@@ -574,6 +575,191 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
   revalidatePath('/dashboard');
   console.log('=== CREATE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
   return { success: 'Fee structure created successfully.' };
+}
+
+const updateFeeStructureSchema = z.object({
+  fee_structure_id: z.string().uuid(),
+  class_id: z.string().uuid(),
+  academic_year: z.string().min(1),
+  term: z.enum(['TERM_1', 'TERM_2', 'TERM_3']),
+  expected_amount: z.coerce.number().positive(),
+});
+
+export async function updateFeeStructureAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  console.log('\n=== UPDATE FEE STRUCTURE ACTION START ===');
+  await requireOwner();
+
+  const parsed = updateFeeStructureSchema.safeParse({
+    fee_structure_id: String(formData.get('fee_structure_id') ?? ''),
+    class_id: String(formData.get('class_id') ?? ''),
+    academic_year: String(formData.get('academic_year') ?? '').trim(),
+    term: String(formData.get('term') ?? ''),
+    expected_amount: formData.get('expected_amount'),
+  });
+
+  console.log('Update fee structure form data:', Object.fromEntries(formData.entries()));
+  console.log('Parsed update:', parsed.data);
+
+  if (!parsed.success) {
+    console.error('Validation failed:', parsed.error.errors);
+    return { error: parsed.error.errors[0]?.message ?? 'Provide valid fee structure details.' };
+  }
+
+  try {
+    const supabase = await createClient();
+    
+    // Check if fee structure exists and is not archived
+    const { data: existing, error: fetchError } = await supabase
+      .from('fee_structures')
+      .select('id, archived')
+      .eq('id', parsed.data.fee_structure_id)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return { error: 'Fee structure not found.' };
+    }
+
+    if (existing.archived) {
+      return { error: 'Cannot update archived fee structure.' };
+    }
+
+    // Update fee structure
+    const { error: updateError } = await supabase
+      .from('fee_structures')
+      .update({
+        class_id: parsed.data.class_id,
+        academic_year: parsed.data.academic_year,
+        term: parsed.data.term,
+        expected_amount: parsed.data.expected_amount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', parsed.data.fee_structure_id);
+
+    if (updateError) {
+      console.error('Update error:', updateError);
+      throw updateError;
+    }
+
+    // Update all linked student fee accounts with new expected amount
+    const { error: accountUpdateError } = await supabase
+      .from('student_fee_accounts')
+      .update({ expected_amount: parsed.data.expected_amount })
+      .eq('fee_structure_id', parsed.data.fee_structure_id);
+
+    if (accountUpdateError) {
+      console.warn('Failed to update student fee accounts:', accountUpdateError.message);
+      // Don't fail the action, but log it
+    }
+
+    console.log('Fee structure updated successfully!');
+  } catch (e) {
+    console.error('=== FEE STRUCTURE UPDATE FAILED ===');
+    return handleActionError(e);
+  }
+
+  console.log('Revalidating paths...');
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
+  console.log('=== UPDATE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
+  return { success: 'Fee structure updated successfully.' };
+}
+
+export async function deleteFeeStructureAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  console.log('\n=== DELETE FEE STRUCTURE ACTION START ===');
+  await requireOwner();
+
+  const feeStructureId = String(formData.get('fee_structure_id') ?? '');
+
+  if (!feeStructureId) {
+    return { error: 'Fee structure ID is required.' };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    // Check if fee structure exists
+    const { data: existing, error: fetchError } = await supabase
+      .from('fee_structures')
+      .select('id, archived')
+      .eq('id', feeStructureId)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return { error: 'Fee structure not found.' };
+    }
+
+    if (existing.archived) {
+      return { error: 'Fee structure is already archived.' };
+    }
+
+    // Check for linked student fee accounts
+    const { data: accounts, error: accountsError } = await supabase
+      .from('student_fee_accounts')
+      .select('id')
+      .eq('fee_structure_id', feeStructureId)
+      .limit(1);
+
+    if (accountsError) {
+      console.error('Error checking accounts:', accountsError);
+      return { error: 'Unable to verify fee structure usage.' };
+    }
+
+    // Check for payments on any linked accounts
+    let hasPayments = false;
+    if (accounts && accounts.length > 0) {
+      const accountIds = accounts.map(a => a.id);
+      const { data: payments, error: paymentsError } = await supabase
+        .from('fee_payments')
+        .select('id')
+        .in('student_fee_account_id', accountIds)
+        .limit(1);
+
+      if (paymentsError) {
+        console.error('Error checking payments:', paymentsError);
+        return { error: 'Unable to verify payment history.' };
+      }
+
+      hasPayments = payments && payments.length > 0;
+    }
+
+    if (accounts && accounts.length > 0 && hasPayments) {
+      // Archive instead of delete
+      const { error: archiveError } = await supabase
+        .from('fee_structures')
+        .update({ archived: true, updated_at: new Date().toISOString() })
+        .eq('id', feeStructureId);
+
+      if (archiveError) {
+        console.error('Archive error:', archiveError);
+        throw archiveError;
+      }
+
+      console.log('Fee structure archived (soft delete) due to existing accounts/payments.');
+      return { success: 'Fee structure archived successfully (preserved for audit/history).' };
+    } else {
+      // Safe to hard delete
+      const { error: deleteError } = await supabase
+        .from('fee_structures')
+        .delete()
+        .eq('id', feeStructureId);
+
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('Fee structure hard deleted (no linked data).');
+      return { success: 'Fee structure deleted successfully.' };
+    }
+  } catch (e) {
+    console.error('=== FEE STRUCTURE DELETE FAILED ===');
+    return handleActionError(e);
+  }
+
+  console.log('Revalidating paths...');
+  revalidatePath('/fees');
+  revalidatePath('/dashboard');
+  console.log('=== DELETE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
 }
 
 export async function recordFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {

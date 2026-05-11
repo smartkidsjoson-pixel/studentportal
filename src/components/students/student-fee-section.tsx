@@ -83,22 +83,58 @@ export function StudentFeeSection({
     }
   }, [deleteState.success, router]);
 
-  const totals = useMemo(() => {
-    // Calculate total expected from accounts array
-    const totalExpected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
-    
-    // Calculate total collected directly from payments array (fail-safe)
-    const totalCollected = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-    
-    // Calculate balance as expected minus collected
-    const currentBalance = totalExpected - totalCollected;
+  const termStats = useMemo(() => {
+    // Group accounts and payments by term
+    const termGroups: Record<string, {
+      accounts: StudentFeeAccountSummary[];
+      payments: FeePaymentHistoryItem[];
+      expected: number;
+      collected: number;
+      balance: number;
+    }> = {};
 
-    return {
-      expected: totalExpected,
-      collected: totalCollected,
-      balance: currentBalance,
-    };
+    // Initialize with accounts
+    accounts.forEach(account => {
+      const termKey = `${account.academic_year}-${account.term}`;
+      if (!termGroups[termKey]) {
+        termGroups[termKey] = {
+          accounts: [],
+          payments: [],
+          expected: 0,
+          collected: 0,
+          balance: 0,
+        };
+      }
+      termGroups[termKey].accounts.push(account);
+      termGroups[termKey].expected += Number(account.expected_amount ?? 0);
+    });
+
+    // Add payments to terms
+    payments.forEach(payment => {
+      const account = accounts.find(a => a.id === payment.student_fee_account_id);
+      if (account) {
+        const termKey = `${account.academic_year}-${account.term}`;
+        if (termGroups[termKey]) {
+          termGroups[termKey].payments.push(payment);
+          termGroups[termKey].collected += Number(payment.amount ?? 0);
+        }
+      }
+    });
+
+    // Calculate balances
+    Object.values(termGroups).forEach(group => {
+      group.balance = group.expected - group.collected;
+    });
+
+    return termGroups;
   }, [accounts, payments]);
+
+  const overallTotals = useMemo(() => {
+    const totalExpected = Object.values(termStats).reduce((sum, term) => sum + term.expected, 0);
+    const totalCollected = Object.values(termStats).reduce((sum, term) => sum + term.collected, 0);
+    const totalBalance = totalExpected - totalCollected;
+    return { expected: totalExpected, collected: totalCollected, balance: totalBalance };
+  }, [termStats]);
 
   return (
     <div className="card">
@@ -107,22 +143,49 @@ export function StudentFeeSection({
         <p>Review the student fee account, payment status and record new payments.</p>
       </div>
 
+      {/* Overall Summary */}
       <div className="grid stats" style={{ marginBottom: '1rem' }}>
         <div className="card small-card">
-          <h3>Expected</h3>
-          <div className="stat-value">{formatCurrency(totals.expected)}</div>
-          <p className="muted">Total expected for all active fee accounts.</p>
+          <h3>Total Expected</h3>
+          <div className="stat-value">{formatCurrency(overallTotals.expected)}</div>
+          <p className="muted">Across all terms</p>
         </div>
         <div className="card small-card">
-          <h3>Collected</h3>
-          <div className="stat-value">{formatCurrency(totals.collected)}</div>
-          <p className="muted">Payments posted for this student.</p>
+          <h3>Total Collected</h3>
+          <div className="stat-value">{formatCurrency(overallTotals.collected)}</div>
+          <p className="muted">Across all terms</p>
         </div>
         <div className="card small-card">
-          <h3>Balance</h3>
-          <div className="stat-value">{formatCurrency(totals.balance)}</div>
-          <p className="muted">Remaining fee balance.</p>
+          <h3>Total Balance</h3>
+          <div className="stat-value">{formatCurrency(overallTotals.balance)}</div>
+          <p className="muted">Remaining across all terms</p>
         </div>
+      </div>
+
+      {/* Term-wise breakdown */}
+      <div style={{ marginBottom: '1rem' }}>
+        <h3>Term Breakdown</h3>
+        {Object.entries(termStats).map(([termKey, termData]) => (
+          <div key={termKey} className="card" style={{ marginBottom: '0.5rem', padding: '1rem' }}>
+            <div className="grid stats">
+              <div className="card small-card">
+                <h4>{termKey.replace('-', ' • ')}</h4>
+                <div className="stat-value">{formatCurrency(termData.expected)}</div>
+                <p className="muted">Expected</p>
+              </div>
+              <div className="card small-card">
+                <h4>&nbsp;</h4>
+                <div className="stat-value">{formatCurrency(termData.collected)}</div>
+                <p className="muted">Collected</p>
+              </div>
+              <div className="card small-card">
+                <h4>&nbsp;</h4>
+                <div className="stat-value">{formatCurrency(termData.balance)}</div>
+                <p className="muted">Balance</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div style={{ marginBottom: '1rem' }}>

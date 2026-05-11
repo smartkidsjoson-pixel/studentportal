@@ -223,6 +223,7 @@ export async function getFeeStructures(): Promise<FeeStructureSummary[]> {
   const { data, error } = await supabase
     .from('fee_structure_overview')
     .select('*')
+    .eq('archived', false)
     .order('academic_year', { ascending: false })
     .order('term', { ascending: true })
     .order('class_name', { ascending: true });
@@ -263,7 +264,8 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
       const { data: feeStructures } = await supabase
         .from('fee_structures')
         .select('id, expected_amount')
-        .eq('class_id', student.class_id);
+        .eq('class_id', student.class_id)
+        .eq('archived', false);
       
       if (feeStructures && feeStructures.length > 0) {
         for (const fs of feeStructures) {
