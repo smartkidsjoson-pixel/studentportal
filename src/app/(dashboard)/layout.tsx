@@ -13,7 +13,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         <div className="topbar">
           <div>
             <h2>Joson's SmartKids Academy</h2>
-            <p>{user.fullName ?? user.email} | {user.role}</p>
+            <p>Owner | Administrator</p>
           </div>
         </div>
         {children}

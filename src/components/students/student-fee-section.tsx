@@ -217,6 +217,10 @@ export function StudentFeeSection({
                 <label className="label" htmlFor="receipt-number">Receipt number</label>
                 <input id="receipt-number" name="receipt_number" required />
               </div>
+              <div>
+                <label className="label" htmlFor="payment-date">Payment date</label>
+                <input id="payment-date" name="payment_date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
+              </div>
             </div>
             <div className="form-actions">
               <button type="submit" disabled={recordPending}>{recordPending ? 'Saving...' : 'Save payment'}</button>
@@ -305,6 +309,16 @@ export function StudentFeeSection({
                 id="edit-receipt-number"
                 name="receipt_number"
                 defaultValue={selectedEditPayment.receipt_number}
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="edit-payment-date">Payment date</label>
+              <input
+                id="edit-payment-date"
+                name="payment_date"
+                type="date"
+                defaultValue={new Date(selectedEditPayment.payment_date).toISOString().split('T')[0]}
                 required
               />
             </div>
