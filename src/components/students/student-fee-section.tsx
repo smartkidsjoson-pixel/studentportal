@@ -33,16 +33,11 @@ export function StudentFeeSection({
 }) {
   const router = useRouter();
   const [showRecordForm, setShowRecordForm] = useState(false);
-  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editingPayment, setEditingPayment] = useState<FeePaymentHistoryItem | null>(null);
   const [recordState, recordAction, recordPending] = useActionState(recordFeePaymentAction, initialState);
   const [updateState, updateAction, updatePending] = useActionState(updateFeePaymentAction, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteFeePaymentAction, initialState);
   const recordFormRef = useRef<HTMLFormElement>(null);
-
-  const selectedEditPayment = useMemo(
-    () => payments.find((payment) => payment.id === editingPaymentId) ?? null,
-    [editingPaymentId, payments],
-  );
 
   useEffect(() => {
     console.log('StudentFeeSection loaded with data:', { studentId, accounts, payments });
@@ -72,7 +67,7 @@ export function StudentFeeSection({
 
   useEffect(() => {
     if (updateState.success) {
-      setEditingPaymentId(null);
+      setEditingPayment(null);
       router.refresh(); // Ensure UI updates immediately after payment update
     }
   }, [updateState.success, router]);
@@ -261,7 +256,7 @@ export function StudentFeeSection({
                   <td>{`${payment.academic_year} ${payment.term.replace('_', ' ')}`}</td>
                   <td>{payment.class_name ?? 'Unknown'}</td>
                   <td>
-                    <button type="button" className="secondary" onClick={() => setEditingPaymentId(payment.id)}>
+                    <button type="button" className="secondary" onClick={() => setEditingPayment(payment)}>
                       Edit
                     </button>
                     <form action={deleteAction} style={{ display: 'inline-block', marginLeft: '0.5rem' }}>
@@ -285,11 +280,11 @@ export function StudentFeeSection({
         </table>
       </div>
 
-      {editingPaymentId && selectedEditPayment ? (
+      {editingPayment ? (
         <form action={updateAction} className="card" style={{ padding: '1rem', marginTop: '1rem' }}>
-          <input type="hidden" name="payment_id" value={selectedEditPayment.id} />
+          <input type="hidden" name="payment_id" value={editingPayment.id} />
           <input type="hidden" name="student_id" value={studentId} />
-          <input type="hidden" name="student_fee_account_id" value={selectedEditPayment.student_fee_account_id} />
+          <input type="hidden" name="student_fee_account_id" value={editingPayment.student_fee_account_id} />
           <div className="form-grid">
             <div>
               <label className="label" htmlFor="edit-payment-amount">Amount</label>
@@ -299,7 +294,7 @@ export function StudentFeeSection({
                 type="number"
                 min="1"
                 step="0.01"
-                defaultValue={selectedEditPayment.amount}
+                defaultValue={editingPayment.amount}
                 required
               />
             </div>
@@ -308,7 +303,7 @@ export function StudentFeeSection({
               <input
                 id="edit-receipt-number"
                 name="receipt_number"
-                defaultValue={selectedEditPayment.receipt_number}
+                defaultValue={editingPayment.receipt_number}
                 required
               />
             </div>
@@ -318,14 +313,14 @@ export function StudentFeeSection({
                 id="edit-payment-date"
                 name="payment_date"
                 type="date"
-                defaultValue={new Date(selectedEditPayment.payment_date).toISOString().split('T')[0]}
+                defaultValue={new Date(editingPayment.payment_date).toISOString().split('T')[0]}
                 required
               />
             </div>
           </div>
           <div className="form-actions">
             <button type="submit" disabled={updatePending}>{updatePending ? 'Saving...' : 'Update payment'}</button>
-            <button type="button" className="secondary" onClick={() => setEditingPaymentId(null)}>
+            <button type="button" className="secondary" onClick={() => setEditingPayment(null)}>
               Cancel
             </button>
             {updateState.error ? <span className="muted">{updateState.error}</span> : null}
