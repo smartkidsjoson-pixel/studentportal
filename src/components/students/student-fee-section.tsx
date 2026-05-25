@@ -39,6 +39,23 @@ export function StudentFeeSection({
   const [deleteState, deleteAction, deletePending] = useActionState(deleteFeePaymentAction, initialState);
   const recordFormRef = useRef<HTMLFormElement>(null);
 
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!paymentId) {
+      console.error('Missing payment ID for delete action');
+      return;
+    }
+
+    const confirmed = window.confirm('Are you sure you want to delete this payment? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('payment_id', paymentId);
+    formData.append('student_id', studentId);
+    await deleteAction(formData);
+  };
+
   useEffect(() => {
     console.log('StudentFeeSection loaded with data:', { studentId, accounts, payments });
     console.log('Accounts count:', accounts.length);
@@ -271,23 +288,7 @@ export function StudentFeeSection({
                         className="danger"
                         disabled={deletePending}
                         style={{ marginLeft: '0.5rem' }}
-                        onClick={async () => {
-                          if (!paymentId) {
-                            console.error('Missing payment ID for delete action', payment);
-                            return;
-                          }
-
-                          const confirmed = window.confirm('Are you sure you want to delete this payment? This action cannot be undone.');
-                          if (!confirmed) {
-                            return;
-                          }
-
-                          console.log('Deleting payment:', paymentId);
-                          const formData = new FormData();
-                          formData.append('payment_id', paymentId);
-                          formData.append('student_id', studentId);
-                          await deleteAction(formData);
-                        }}
+                        onClick={() => handleDeletePayment(paymentId)}
                       >
                         Delete
                       </button>
