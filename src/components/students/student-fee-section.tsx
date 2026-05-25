@@ -99,50 +99,29 @@ export function StudentFeeSection({
   }, [deleteState.success, router]);
 
   const termStats = useMemo(() => {
-    // Group accounts and payments by term
     const termGroups: Record<string, {
-      accounts: StudentFeeAccountSummary[];
-      payments: FeePaymentHistoryItem[];
       expected: number;
       collected: number;
       balance: number;
     }> = {};
 
-    // Initialize with accounts
-    accounts.forEach(account => {
+    accounts.forEach((account) => {
       const termKey = `${account.academic_year}-${account.term}`;
       if (!termGroups[termKey]) {
         termGroups[termKey] = {
-          accounts: [],
-          payments: [],
           expected: 0,
           collected: 0,
           balance: 0,
         };
       }
-      termGroups[termKey].accounts.push(account);
+
       termGroups[termKey].expected += Number(account.expected_amount ?? 0);
-    });
-
-    // Add payments to terms
-    payments.forEach(payment => {
-      const account = accounts.find(a => a.id === payment.student_fee_account_id);
-      if (account) {
-        const termKey = `${account.academic_year}-${account.term}`;
-        if (termGroups[termKey]) {
-          termGroups[termKey].payments.push(payment);
-          termGroups[termKey].collected += Number(payment.amount ?? 0);
-        }
-      }
-    });
-
-    // Calculate balances
-    Object.values(termGroups).forEach(group => {
-      group.balance = group.expected - group.collected;
+      termGroups[termKey].collected += Number(account.total_paid ?? 0);
+      termGroups[termKey].balance += Number(account.balance ?? 0);
     });
 
     return termGroups;
-  }, [accounts, payments]);
+  }, [accounts]);
 
   const overallTotals = useMemo(() => {
     if (student) {
