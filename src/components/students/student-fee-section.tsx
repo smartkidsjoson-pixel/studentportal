@@ -138,6 +138,8 @@ export function StudentFeeSection({
     return { expected: totalExpected, collected: totalCollected, balance: totalBalance };
   }, [student, termStats]);
 
+  console.log('👉 [DEBUG 1] ALL ACCOUNTS PASSED TO COMPONENT:', accounts);
+
   return (
     <div className="card">
       <div className="section-header" style={{ marginBottom: '1rem' }}>
@@ -167,27 +169,36 @@ export function StudentFeeSection({
       {/* Term-wise breakdown */}
       <div style={{ marginBottom: '1rem' }}>
         <h3>Term Breakdown</h3>
-        {Object.entries(termStats).map(([termKey, termData]) => (
-          <div key={termKey} className="card" style={{ marginBottom: '0.5rem', padding: '1rem' }}>
-            <div className="grid stats">
-              <div className="card small-card">
-                <h4>{termKey.replace('-', ' • ')}</h4>
-                <div className="stat-value">{formatCurrency(termData.expected)}</div>
-                <p className="muted">Expected</p>
-              </div>
-              <div className="card small-card">
-                <h4>&nbsp;</h4>
-                <div className="stat-value">{formatCurrency(termData.collected)}</div>
-                <p className="muted">Collected</p>
-              </div>
-              <div className="card small-card">
-                <h4>&nbsp;</h4>
-                <div className="stat-value">{formatCurrency(termData.balance)}</div>
-                <p className="muted">Balance</p>
+        {Object.entries(termStats).map(([termKey, termData]) => {
+          const currentTerm = termKey.replace('-', ' • ');
+          const matchingAccount = accounts.find((account) => `${account.academic_year}-${account.term}` === termKey);
+          const matchStatus = Boolean(matchingAccount);
+
+          console.log(`👉 [DEBUG 2] Checking Card for Term: "${currentTerm}". Comparing with Account Term: "${matchingAccount?.academic_year ?? 'unknown'}-${matchingAccount?.term ?? 'unknown'}". Match Result:`, matchStatus);
+          console.log(`👉 [DEBUG 3] FINAL CARD VALUES for "${currentTerm}": Expected=${termData.expected}, Paid=${termData.collected}, Balance=${termData.balance}`);
+
+          return (
+            <div key={termKey} className="card" style={{ marginBottom: '0.5rem', padding: '1rem' }}>
+              <div className="grid stats">
+                <div className="card small-card">
+                  <h4>{currentTerm}</h4>
+                  <div className="stat-value">{formatCurrency(termData.expected)}</div>
+                  <p className="muted">Expected</p>
+                </div>
+                <div className="card small-card">
+                  <h4>&nbsp;</h4>
+                  <div className="stat-value">{formatCurrency(termData.collected)}</div>
+                  <p className="muted">Collected</p>
+                </div>
+                <div className="card small-card">
+                  <h4>&nbsp;</h4>
+                  <div className="stat-value">{formatCurrency(termData.balance)}</div>
+                  <p className="muted">Balance</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ marginBottom: '1rem' }}>
