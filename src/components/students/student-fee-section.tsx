@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -191,7 +191,16 @@ export function StudentFeeSection({
 
       {showRecordForm ? (
         accounts.length ? (
-          <form ref={recordFormRef} action={recordAction} className="card" style={{ padding: '1rem' }}>
+          <form
+            ref={recordFormRef}
+            action={recordAction}
+            className="card"
+            style={{ padding: '1rem' }}
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              const formData = new FormData(event.currentTarget);
+              console.log('Submitting fee payment form:', Object.fromEntries(formData.entries()));
+            }}
+          >
             <input type="hidden" name="student_id" value={studentId} />
             <div className="form-grid">
               <div>

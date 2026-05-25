@@ -245,11 +245,11 @@ const recordFeePaymentSchema = z.object({
   student_fee_account_id: z.string().uuid('Select a fee account'),
   amount: z.preprocess((value) => Number(value), z.number().positive('Payment amount must be greater than zero')),
   receipt_number: z.string().min(1, 'Receipt number is required'),
-  payment_date: z.string().min(1, 'Payment date is required'),
 });
 
 const updateFeePaymentSchema = recordFeePaymentSchema.extend({
   payment_id: z.string().uuid('Payment identifier is required'),
+  payment_date: z.string().min(1, 'Payment date is required').optional(),
 });
 
 const deleteFeePaymentSchema = z.object({
