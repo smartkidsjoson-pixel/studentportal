@@ -909,9 +909,11 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
   console.log('Revalidating paths...');
   if (studentId) {
     revalidatePath(`/students/${studentId}`);
+    revalidatePath('/(dashboard)/students/[studentId]', 'layout');
   }
   revalidatePath('/fees');
   revalidatePath('/dashboard');
+  revalidatePath('/(dashboard)/students', 'page');
   
   console.log('=== RECORD FEE PAYMENT ACTION END (SUCCESS) ===\n');
   return { success: 'Payment recorded successfully.' };
@@ -1004,9 +1006,11 @@ export async function deleteFeePaymentAction(_prevState: ActionState, formData: 
 
   if (studentId) {
     revalidatePath(`/students/${studentId}`);
+    revalidatePath('/(dashboard)/students/[studentId]', 'layout');
   }
   revalidatePath('/fees');
   revalidatePath('/dashboard');
+  revalidatePath('/(dashboard)/students', 'page');
   return { success: 'Payment deleted successfully.' };
 }
 
