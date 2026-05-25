@@ -783,6 +783,7 @@ export async function recordFeePaymentAction(_prevState: ActionState, formData: 
     student_fee_account_id: String(cleanData.student_fee_account_id ?? ''),
     amount: cleanData.amount,
     receipt_number: String(cleanData.receipt_number ?? '').trim(),
+    payment_date: String(cleanData.payment_date ?? '').trim(),
   });
 
   if (!parsed.success) {

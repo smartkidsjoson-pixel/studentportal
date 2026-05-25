@@ -215,6 +215,7 @@ SELECT
   s.profile_photo_url,
   s.status,
   s.class_id,
+  c.level_order,
   c.name as class_name,
   s.created_at
 FROM public.students s

@@ -120,6 +120,7 @@ export type StudentDirectoryItem = {
   profile_photo_url: string | null;
   class_name: string | null;
   class_id: string | null;
+  level_order?: number;
   created_at: string | null;
   fee_expected: number;
   total_paid: number;

@@ -604,6 +604,7 @@ select
   s.home_address,
   s.status,
   s.class_id,
+  c.level_order,
   c.name as class_name,
   s.date_joined,
   s.profile_photo_url,
