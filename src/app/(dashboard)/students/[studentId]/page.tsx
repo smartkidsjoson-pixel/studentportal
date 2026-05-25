@@ -140,6 +140,7 @@ export default async function StudentProfilePage({
       </div>
       {user?.role === 'OWNER' && feeOverview ? (
         <StudentFeeSection
+          student={student}
           studentId={student.id}
           accounts={feeOverview.accounts}
           payments={feeOverview.payments}

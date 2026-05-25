@@ -11,6 +11,7 @@ import {
 } from '@/lib/actions';
 import type {
   FeePaymentHistoryItem,
+  StudentDirectoryItem,
   StudentFeeAccountSummary,
 } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
@@ -24,10 +25,12 @@ function feeAccountLabel(account: StudentFeeAccountSummary) {
 
 export function StudentFeeSection({
   studentId,
+  student,
   accounts,
   payments,
 }: {
   studentId: string;
+  student?: Pick<StudentDirectoryItem, 'fee_expected' | 'total_paid' | 'balance'>;
   accounts: StudentFeeAccountSummary[];
   payments: FeePaymentHistoryItem[];
 }) {
@@ -142,11 +145,19 @@ export function StudentFeeSection({
   }, [accounts, payments]);
 
   const overallTotals = useMemo(() => {
+    if (student) {
+      return {
+        expected: Number(student.fee_expected ?? 0),
+        collected: Number(student.total_paid ?? 0),
+        balance: Number(student.balance ?? 0),
+      };
+    }
+
     const totalExpected = Object.values(termStats).reduce((sum, term) => sum + term.expected, 0);
     const totalCollected = Object.values(termStats).reduce((sum, term) => sum + term.collected, 0);
     const totalBalance = totalExpected - totalCollected;
     return { expected: totalExpected, collected: totalCollected, balance: totalBalance };
-  }, [termStats]);
+  }, [student, termStats]);
 
   return (
     <div className="card">
