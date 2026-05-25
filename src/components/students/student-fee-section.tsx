@@ -253,27 +253,48 @@ export function StudentFeeSection({
           </thead>
           <tbody>
             {payments.length ? (
-              payments.map((payment) => (
-                <tr key={payment.id}>
-                  <td>{new Date(payment.payment_date).toLocaleDateString()}</td>
-                  <td>{formatCurrency(Number(payment.amount))}</td>
-                  <td>{payment.receipt_number}</td>
-                  <td>{`${payment.academic_year} ${payment.term.replace('_', ' ')}`}</td>
-                  <td>{payment.class_name ?? 'Unknown'}</td>
-                  <td>
-                    <button type="button" className="secondary" onClick={() => setEditingPayment(payment)}>
-                      Edit
-                    </button>
-                    <form action={deleteAction} style={{ display: 'inline-block', marginLeft: '0.5rem' }}>
-                      <input type="hidden" name="payment_id" value={payment.id} />
-                      <input type="hidden" name="student_id" value={studentId} />
-                      <button type="submit" className="danger" disabled={deletePending}>
+              payments.map((payment) => {
+                const paymentId = payment.id ?? (payment as any).payment_id ?? '';
+                return (
+                  <tr key={paymentId || payment.id}>
+                    <td>{new Date(payment.payment_date).toLocaleDateString()}</td>
+                    <td>{formatCurrency(Number(payment.amount))}</td>
+                    <td>{payment.receipt_number}</td>
+                    <td>{`${payment.academic_year} ${payment.term.replace('_', ' ')}`}</td>
+                    <td>{payment.class_name ?? 'Unknown'}</td>
+                    <td>
+                      <button type="button" className="secondary" onClick={() => setEditingPayment(payment)}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        disabled={deletePending}
+                        style={{ marginLeft: '0.5rem' }}
+                        onClick={async () => {
+                          if (!paymentId) {
+                            console.error('Missing payment ID for delete action', payment);
+                            return;
+                          }
+
+                          const confirmed = window.confirm('Are you sure you want to delete this payment? This action cannot be undone.');
+                          if (!confirmed) {
+                            return;
+                          }
+
+                          console.log('Deleting payment:', paymentId);
+                          const formData = new FormData();
+                          formData.append('payment_id', paymentId);
+                          formData.append('student_id', studentId);
+                          await deleteAction(formData);
+                        }}
+                      >
                         Delete
                       </button>
-                    </form>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={6} className="muted">
