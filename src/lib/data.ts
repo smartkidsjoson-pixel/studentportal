@@ -131,7 +131,7 @@ export async function getStudents(params?: {
   let builder = supabase
     .from('student_directory')
     .select('*')
-    .order('level_order', { ascending: true })
+    .order('class_name', { ascending: true })
     .order('full_name', { ascending: true })
     .range(from, to);
 
