@@ -128,38 +128,82 @@ export async function getStudents(params?: {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let builder = supabase
-    .from('student_directory')
-    .select('*')
-    .order('level_order', { ascending: true })
-    .order('full_name', { ascending: true })
-    .range(from, to);
-
-  if (user?.role === 'TEACHER') {
-    const teacherClassIds = await getTeacherClassIds(supabase, user.id);
-    builder = builder.in('class_id', teacherClassIds);
-    if (!params?.status) {
-      builder = builder.eq('status', 'active');
+  const applyStudentFilters = async (builder: any) => {
+    if (user?.role === 'TEACHER') {
+      const teacherClassIds = await getTeacherClassIds(supabase, user.id);
+      if (teacherClassIds.length === 0) {
+        builder = builder.in('class_id', []);
+      } else {
+        builder = builder.in('class_id', teacherClassIds);
+      }
+      if (!params?.status) {
+        builder = builder.eq('status', 'active');
+      }
     }
-  }
 
-  if (params?.classId) {
-    builder = builder.eq('class_id', params.classId);
-  }
+    if (params?.classId) {
+      builder = builder.eq('class_id', params.classId);
+    }
 
-  if (params?.status) {
-    builder = builder.eq('status', params.status);
-  }
+    if (params?.status) {
+      builder = builder.eq('status', params.status);
+    }
 
-  if (searchQuery) {
-    builder = builder.or(`full_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_name.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%,class_name.ilike.%${searchQuery}%`);
-  }
+    if (searchQuery) {
+      builder = builder.or(`full_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_name.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%,class_name.ilike.%${searchQuery}%`);
+    }
+
+    return builder;
+  };
+
+  let builder = await applyStudentFilters(
+    supabase
+      .from('student_directory')
+      .select('*')
+      .order('level_order', { ascending: true })
+      .order('full_name', { ascending: true })
+      .range(from, to),
+  );
 
   const { data, error } = await builder;
 
   if (error) {
-    console.error(error);
-    return [];
+    console.error('getStudents() failed ordering by level_order; falling back to class_name ordering', {
+      error,
+      params: {
+        query: params?.query,
+        classId: params?.classId,
+        status: params?.status,
+        page,
+        pageSize,
+      },
+    });
+
+    const fallbackBuilder = await applyStudentFilters(
+      supabase
+        .from('student_directory')
+        .select('*')
+        .order('class_name', { ascending: true })
+        .order('full_name', { ascending: true })
+        .range(from, to),
+    );
+
+    const { data: fallbackData, error: fallbackError } = await fallbackBuilder;
+    if (fallbackError) {
+      console.error('getStudents() fallback ordering also failed', {
+        error: fallbackError,
+        params: {
+          query: params?.query,
+          classId: params?.classId,
+          status: params?.status,
+          page,
+          pageSize,
+        },
+      });
+      return [];
+    }
+
+    return fallbackData ?? [];
   }
 
   return data ?? [];
