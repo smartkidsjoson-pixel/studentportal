@@ -114,19 +114,15 @@ export function StudentFeeSection({
 
   const termStats = useMemo(() => {
     const termGroups: Record<string, {
+      accounts: StudentFeeAccountSummary[];
       expected: number;
-      collected: number;
-      balance: number;
-      hasAccount: boolean;
     }> = {};
 
     const addTermGroup = (termKey: string) => {
       if (!termGroups[termKey]) {
         termGroups[termKey] = {
+          accounts: [],
           expected: 0,
-          collected: 0,
-          balance: 0,
-          hasAccount: false,
         };
       }
     };
@@ -134,29 +130,12 @@ export function StudentFeeSection({
     accounts.forEach((account) => {
       const termKey = buildTermKey(account);
       addTermGroup(termKey);
+      termGroups[termKey].accounts.push(account);
       termGroups[termKey].expected += Number(account.expected_amount ?? 0);
-      termGroups[termKey].collected += Number(account.total_paid ?? 0);
-      termGroups[termKey].balance += Number(account.balance ?? 0);
-      termGroups[termKey].hasAccount = true;
-    });
-
-    payments.forEach((payment) => {
-      const termKey = buildTermKey(payment);
-      addTermGroup(termKey);
-      termGroups[termKey].collected += Number(payment.amount ?? 0);
-      if (!termGroups[termKey].hasAccount) {
-        termGroups[termKey].balance = termGroups[termKey].expected - termGroups[termKey].collected;
-      }
-    });
-
-    Object.values(termGroups).forEach((group) => {
-      if (!group.hasAccount) {
-        group.balance = group.expected - group.collected;
-      }
     });
 
     return termGroups;
-  }, [accounts, payments]);
+  }, [accounts]);
 
   const overallTotals = useMemo(() => {
     if (student) {
@@ -172,8 +151,6 @@ export function StudentFeeSection({
     const totalBalance = totalExpected - totalCollected;
     return { expected: totalExpected, collected: totalCollected, balance: totalBalance };
   }, [student, termStats]);
-
-  console.log('👉 [DEBUG 1] ALL ACCOUNTS PASSED TO COMPONENT:', accounts);
 
   return (
     <div className="card">
@@ -206,54 +183,31 @@ export function StudentFeeSection({
         <h3>Term Breakdown</h3>
         {Object.entries(termStats).map(([termKey, termData]) => {
           const currentTerm = termKey.replace('-', ' • ');
-          const accountComparisons = accounts.map((account) => {
-            const accountTermKey = buildTermKey(account);
-            const match = accountTermKey === termKey;
-            return {
-              id: account.id,
-              accountYear: normalizeYearValue(account.academic_year ?? account.academicYear),
-              accountTerm: normalizeTermValue(account.term ?? account.academic_term ?? account.term_name),
-              accountTermKey,
-              match,
-            };
-          });
+          const matchingAccounts = termData.accounts;
 
-          const matchingAccount = accounts.find((account) => buildTermKey(account) === termKey);
-          const matchStatus = Boolean(matchingAccount);
+          const termCollected = matchingAccounts.reduce((sum, account) => {
+            const termPayments = payments.filter((p) => p.student_fee_account_id === account.id);
+            return sum + termPayments.reduce((subSum, payment) => subSum + Number(payment.amount ?? 0), 0);
+          }, 0);
 
-          const fallbackExpected = accounts
-            .filter((account) => buildTermKey(account) === termKey)
-            .reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
-          const fallbackCollected = payments
-            .filter((payment) => buildTermKey(payment) === termKey)
-            .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-          const fallbackBalance = fallbackExpected - fallbackCollected;
-
-          const displayExpected = matchingAccount ? termData.expected : fallbackExpected;
-          const displayCollected = matchingAccount ? termData.collected : fallbackCollected;
-          const displayBalance = matchingAccount ? termData.balance : fallbackBalance;
-
-          console.log('👉 [DEBUG 2] Checking Card for Term:', currentTerm);
-          console.log('👉 [DEBUG 2] Account comparison list:', accountComparisons);
-          console.log('👉 [DEBUG 2] Match Result for term key', termKey, ':', matchStatus);
-          console.log(`👉 [DEBUG 3] FINAL CARD VALUES for "${currentTerm}": Expected=${displayExpected}, Paid=${displayCollected}, Balance=${displayBalance}`);
+          const termBalance = matchingAccounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0) - termCollected;
 
           return (
             <div key={termKey} className="card" style={{ marginBottom: '0.5rem', padding: '1rem' }}>
               <div className="grid stats">
                 <div className="card small-card">
                   <h4>{currentTerm}</h4>
-                  <div className="stat-value">{formatCurrency(displayExpected)}</div>
+                  <div className="stat-value">{formatCurrency(termData.expected)}</div>
                   <p className="muted">Expected</p>
                 </div>
                 <div className="card small-card">
                   <h4>&nbsp;</h4>
-                  <div className="stat-value">{formatCurrency(displayCollected)}</div>
+                  <div className="stat-value">{formatCurrency(termCollected)}</div>
                   <p className="muted">Collected</p>
                 </div>
                 <div className="card small-card">
                   <h4>&nbsp;</h4>
-                  <div className="stat-value">{formatCurrency(displayBalance)}</div>
+                  <div className="stat-value">{formatCurrency(termBalance)}</div>
                   <p className="muted">Balance</p>
                 </div>
               </div>
