@@ -122,7 +122,7 @@ export async function getStudents(params?: {
   pageSize?: number;
 }, user?: SessionUser): Promise<StudentDirectoryItem[]> {
   const supabase = await createClient();
-  const query = params?.query ? sanitizeSearchQuery(params.query) : undefined;
+  const searchQuery = params?.query ? sanitizeSearchQuery(params.query) : undefined;
   const pageSize = params?.pageSize ?? 12;
   const page = params?.page && params.page > 0 ? params.page : 1;
   const from = (page - 1) * pageSize;
@@ -131,6 +131,7 @@ export async function getStudents(params?: {
   let builder = supabase
     .from('student_directory')
     .select('*')
+    .order('level_order', { ascending: true })
     .order('full_name', { ascending: true })
     .range(from, to);
 
@@ -150,8 +151,8 @@ export async function getStudents(params?: {
     builder = builder.eq('status', params.status);
   }
 
-  if (query) {
-    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%,parent_name.ilike.%${query}%,parent_phone.ilike.%${query}%,class_name.ilike.%${query}%`);
+  if (searchQuery) {
+    builder = builder.or(`full_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_name.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%,class_name.ilike.%${searchQuery}%`);
   }
 
   const { data, error } = await builder;
@@ -166,7 +167,7 @@ export async function getStudents(params?: {
 
 export async function getStudentsCount(params?: { query?: string; classId?: string; status?: string }, user?: SessionUser): Promise<number> {
   const supabase = await createClient();
-  const query = params?.query ? sanitizeSearchQuery(params.query) : undefined;
+  const searchQuery = params?.query ? sanitizeSearchQuery(params.query) : undefined;
 
   let builder = supabase
     .from('student_directory')
@@ -188,8 +189,8 @@ export async function getStudentsCount(params?: { query?: string; classId?: stri
     builder = builder.eq('status', params.status);
   }
 
-  if (query) {
-    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%,parent_name.ilike.%${query}%,parent_phone.ilike.%${query}%,class_name.ilike.%${query}%`);
+  if (searchQuery) {
+    builder = builder.or(`full_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_name.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%,class_name.ilike.%${searchQuery}%`);
   }
 
   const { count, error } = await builder;
