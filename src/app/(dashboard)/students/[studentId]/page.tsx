@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 
 import { getClasses, getPromotionHistory, getStudentById, getSessionUserProfile, getStudentFeeOverview } from '@/lib/data';
