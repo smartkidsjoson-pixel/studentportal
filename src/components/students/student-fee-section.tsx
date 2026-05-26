@@ -98,6 +98,8 @@ export function StudentFeeSection({
     }
   }, [deleteState.success, router]);
 
+  const normalizeId = (value: unknown) => String(value ?? '').trim();
+
   const normalizeTermValue = (term?: string) =>
     String(term ?? '')
       .toUpperCase()
@@ -116,6 +118,8 @@ export function StudentFeeSection({
     const termGroups: Record<string, {
       accounts: StudentFeeAccountSummary[];
       expected: number;
+      collected: number;
+      balance: number;
     }> = {};
 
     const addTermGroup = (termKey: string) => {
@@ -123,6 +127,8 @@ export function StudentFeeSection({
         termGroups[termKey] = {
           accounts: [],
           expected: 0,
+          collected: 0,
+          balance: 0,
         };
       }
     };
@@ -134,8 +140,17 @@ export function StudentFeeSection({
       termGroups[termKey].expected += Number(account.expected_amount ?? 0);
     });
 
+    Object.values(termGroups).forEach((group) => {
+      group.collected = group.accounts.reduce((sum, account) => {
+        const normalizedAccountId = normalizeId(account.id);
+        const termPayments = payments.filter((payment) => normalizeId(payment.student_fee_account_id) === normalizedAccountId);
+        return sum + termPayments.reduce((subSum, payment) => subSum + Number(payment.amount ?? 0), 0);
+      }, 0);
+      group.balance = group.expected - group.collected;
+    });
+
     return termGroups;
-  }, [accounts]);
+  }, [accounts, payments]);
 
   const overallTotals = useMemo(() => {
     if (student) {
