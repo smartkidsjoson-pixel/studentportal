@@ -185,9 +185,23 @@ export function StudentFeeSection({
           const currentTerm = termKey.replace('-', ' • ');
           const matchingAccounts = termData.accounts;
 
+          const normalizeId = (value: unknown) => String(value ?? '').trim();
           const termCollected = matchingAccounts.reduce((sum, account) => {
-            const termPayments = payments.filter((p) => p.student_fee_account_id === account.id);
-            return sum + termPayments.reduce((subSum, payment) => subSum + Number(payment.amount ?? 0), 0);
+            const normalizedAccountId = normalizeId(account.id);
+            const termPayments = payments.filter((payment) => {
+              const normalizedPaymentAccountId = normalizeId(payment.student_fee_account_id);
+              return normalizedPaymentAccountId === normalizedAccountId;
+            });
+
+            console.log('👉 [TERM DEBUG] account.id =', account.id, 'normalized =', normalizedAccountId);
+            console.log('👉 [TERM DEBUG] payments student_fee_account_id values =', payments.map((p) => normalizeId(p.student_fee_account_id)));
+            console.log('👉 [TERM DEBUG] filteredPayments.length =', termPayments.length, 'for accountId=', normalizedAccountId);
+
+            const fallbackPayments = termPayments.length > 0
+              ? termPayments
+              : payments.filter((payment) => buildTermKey(payment) === termKey);
+
+            return sum + fallbackPayments.reduce((subSum, payment) => subSum + Number(payment.amount ?? 0), 0);
           }, 0);
 
           const termBalance = matchingAccounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0) - termCollected;
