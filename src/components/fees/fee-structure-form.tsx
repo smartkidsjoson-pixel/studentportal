@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { FormEvent, useEffect, useRef } from 'react';
 import { useActionState } from 'react';
 
 import { createFeeStructureAction } from '@/lib/actions';
@@ -19,7 +19,15 @@ export function FeeStructureForm({ classes }: { classes: ClassSummary[] }) {
   }, [state.success]);
 
   return (
-    <form ref={formRef} action={formAction} className="card">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="card"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        const data = new FormData(event.currentTarget);
+        console.log('👉 [FORM SUBMIT DATA]:', Object.fromEntries(data.entries()));
+      }}
+    >
       <div className="section-header" style={{ marginBottom: '0.9rem' }}>
         <h2>Create fee structure</h2>
         <p>Set expected fees by class, year and term so student accounts are created automatically.</p>

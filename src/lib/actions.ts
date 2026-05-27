@@ -525,7 +525,15 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
       term: parsed.data.term,
       expected_amount: parsed.data.expected_amount,
     });
-    
+
+    const { data: classRow, error: classError } = await supabase
+      .from('classes')
+      .select('id, name')
+      .eq('id', parsed.data.class_id)
+      .maybeSingle();
+
+    console.log('Class lookup result:', { classRow, classError, classId: parsed.data.class_id });
+
     const { error, data } = await supabase.from('fee_structures').insert({
       class_id: parsed.data.class_id,
       academic_year: parsed.data.academic_year,
@@ -566,9 +574,12 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
     }
 
     console.log('Fee structure created! Trigger should auto-create student fee accounts...');
-  } catch (e) {
-    console.error('=== FEE STRUCTURE CREATION FAILED ===');
-    return handleActionError(e);
+  } catch (err: any) {
+    console.error('🚨 [DEBUG TRIGGER FAILED]');
+    console.error('🚨 Error Name:', err?.name);
+    console.error('🚨 Error Message:', err?.message);
+    console.error('🚨 Full Error Details:', JSON.stringify(err, null, 2));
+    throw err;
   }
 
   console.log('Revalidating paths...');
