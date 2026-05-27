@@ -499,32 +499,34 @@ export async function createClassAction(_prevState: ActionState, formData: FormD
 
 export async function createFeeStructureAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   console.log('\n=== CREATE FEE STRUCTURE ACTION START ===');
-  await requireOwner();
-
-  const parsed = createFeeStructureSchema.safeParse({
-    class_id: String(formData.get('class_id') ?? ''),
-    academic_year: String(formData.get('academic_year') ?? '').trim(),
-    term: String(formData.get('term') ?? ''),
-    expected_amount: formData.get('expected_amount'),
-  });
-
-  console.log('Fee structure form data:', Object.fromEntries(formData.entries()));
-  console.log('Parsed fee structure:', parsed.data);
-
-  if (!parsed.success) {
-    console.error('Validation failed:', parsed.error.errors);
-    return { error: parsed.error.errors[0]?.message ?? 'Provide valid fee structure details.' };
-  }
-
   try {
-    const supabase = await createClient();
-    console.log('Inserting fee structure...');
-    console.log('Payload:', {
+    await requireOwner();
+
+    const rawFormData = Object.fromEntries(formData.entries());
+    console.log('👉 [FORM SUBMIT DATA]:', rawFormData);
+
+    const parsed = createFeeStructureSchema.safeParse({
+      class_id: String(rawFormData.class_id ?? ''),
+      academic_year: String(rawFormData.academic_year ?? '').trim(),
+      term: String(rawFormData.term ?? ''),
+      expected_amount: rawFormData.expected_amount,
+    });
+
+    if (!parsed.success) {
+      console.error('Validation failed:', parsed.error.errors);
+      return { error: parsed.error.errors[0]?.message ?? 'Provide valid fee structure details.' };
+    }
+
+    const payload = {
       class_id: parsed.data.class_id,
       academic_year: parsed.data.academic_year,
       term: parsed.data.term,
       expected_amount: parsed.data.expected_amount,
-    });
+    };
+
+    console.log('Formatted fee structure payload:', payload);
+
+    const supabase = await createClient();
 
     const { data: classRow, error: classError } = await supabase
       .from('classes')
@@ -534,21 +536,16 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
 
     console.log('Class lookup result:', { classRow, classError, classId: parsed.data.class_id });
 
-    const { error, data } = await supabase.from('fee_structures').insert({
-      class_id: parsed.data.class_id,
-      academic_year: parsed.data.academic_year,
-      term: parsed.data.term,
-      expected_amount: parsed.data.expected_amount,
-    }).select('id, class_id');
-    
+    const { error, data } = await supabase.from('fee_structures').insert(payload).select('id, class_id');
+
     console.log('Response - data:', data);
     console.log('Response - error:', error);
-    
+
     if (error) {
       console.error('Supabase error:', error);
       throw error;
     }
-    
+
     if (data && data[0]?.class_id) {
       const { data: students, error: studentError } = await supabase
         .from('students')
@@ -574,19 +571,18 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
     }
 
     console.log('Fee structure created! Trigger should auto-create student fee accounts...');
+    console.log('Revalidating paths...');
+    revalidatePath('/fees');
+    revalidatePath('/dashboard');
+    console.log('=== CREATE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
+    return { success: 'Fee structure created successfully.' };
   } catch (err: any) {
-    console.error('🚨 [DEBUG TRIGGER FAILED]');
+    console.error('🚨 [GLOBAL CREATE FEE STRUCTURE ACTION ERROR]');
     console.error('🚨 Error Name:', err?.name);
     console.error('🚨 Error Message:', err?.message);
     console.error('🚨 Full Error Details:', JSON.stringify(err, null, 2));
-    throw err;
+    return handleActionError(err);
   }
-
-  console.log('Revalidating paths...');
-  revalidatePath('/fees');
-  revalidatePath('/dashboard');
-  console.log('=== CREATE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
-  return { success: 'Fee structure created successfully.' };
 }
 
 const updateFeeStructureSchema = z.object({
