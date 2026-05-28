@@ -764,10 +764,6 @@ export async function deleteFeeStructureAction(_prevState: ActionState, formData
       return { error: 'Fee structure not found.' };
     }
 
-    if (existing.archived) {
-      return { error: 'Fee structure is already archived.' };
-    }
-
     // Check for linked student fee accounts
     const { data: accounts, error: accountsError } = await supabase
       .from('student_fee_accounts')
@@ -783,7 +779,7 @@ export async function deleteFeeStructureAction(_prevState: ActionState, formData
     const hasAccounts = accounts && accounts.length > 0;
 
     if (hasAccounts) {
-      // Archive instead of delete when any student fee accounts exist
+      // Archive (soft delete) when any student fee accounts exist to preserve audit trail
       const { error: archiveError } = await supabase
         .from('fee_structures')
         .update({ archived: true, updated_at: new Date().toISOString() })
@@ -794,25 +790,22 @@ export async function deleteFeeStructureAction(_prevState: ActionState, formData
         throw archiveError;
       }
 
-      console.log('Fee structure archived (soft delete) due to existing student fee accounts.');
-      revalidatePath('/fees');
-      revalidatePath('/dashboard');
-      revalidatePath('/students');
-      return { success: 'Fee structure archived successfully (preserved for audit/history).' };
+      console.log('Fee structure archived due to linked student fee accounts.');
+    } else {
+      // Hard delete when no linked accounts exist
+      const { error: deleteError } = await supabase
+        .from('fee_structures')
+        .delete()
+        .eq('id', feeStructureId);
+
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('Fee structure hard deleted.');
     }
 
-    // Safe to hard delete when no linked accounts exist
-    const { error: deleteError } = await supabase
-      .from('fee_structures')
-      .delete()
-      .eq('id', feeStructureId);
-
-    if (deleteError) {
-      console.error('Delete error:', deleteError);
-      throw deleteError;
-    }
-
-    console.log('Fee structure hard deleted (no linked data).');
     revalidatePath('/fees');
     revalidatePath('/dashboard');
     revalidatePath('/students');
@@ -821,11 +814,6 @@ export async function deleteFeeStructureAction(_prevState: ActionState, formData
     console.error('=== FEE STRUCTURE DELETE FAILED ===');
     return handleActionError(e);
   }
-
-  console.log('Revalidating paths...');
-  revalidatePath('/fees');
-  revalidatePath('/dashboard');
-  console.log('=== DELETE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
 }
 
 export async function recordFeePaymentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
