@@ -517,33 +517,81 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
       return { error: parsed.error.errors[0]?.message ?? 'Provide valid fee structure details.' };
     }
 
-    const payload = {
+    const validated = {
       class_id: parsed.data.class_id,
       academic_year: parsed.data.academic_year,
       term: parsed.data.term,
       expected_amount: parsed.data.expected_amount,
     };
 
-    console.log('Formatted fee structure payload:', payload);
+    console.log('Validated payload:', validated);
 
     const supabase = await createClient();
 
-    const { data: classRow, error: classError } = await supabase
-      .from('classes')
-      .select('id, name')
-      .eq('id', parsed.data.class_id)
+    // PRECHECK: existing fee structure for same class/year/term
+    const existing = await supabase
+      .from('fee_structures')
+      .select('id, class_id, academic_year, term')
+      .eq('class_id', validated.class_id)
+      .eq('academic_year', validated.academic_year)
+      .eq('term', validated.term)
       .maybeSingle();
 
-    console.log('Class lookup result:', { classRow, classError, classId: parsed.data.class_id });
+    console.log('Existing structure:', existing?.data ?? existing);
 
-    const { error, data } = await supabase.from('fee_structures').insert(payload).select('id, class_id');
+    if (existing?.data) {
+      return { error: 'Fee structure already exists for this class/year/term' };
+    }
+
+    // Verify class exists and check for minor data issues
+    const { data: classRow, error: classError } = await supabase
+      .from('classes')
+      .select('id, name, level_order')
+      .eq('id', validated.class_id)
+      .maybeSingle();
+
+    console.log('Class lookup result:', { classRow, classError, classId: validated.class_id });
+
+    if (classError) {
+      console.error('CREATE FEE STRUCTURE ERROR: class lookup failed', classError);
+      return {
+        error: classError?.message || classError?.details || classError?.hint || JSON.stringify(classError),
+      };
+    }
+
+    if (!classRow) {
+      return { error: 'Selected class no longer exists' };
+    }
+
+    // Safe fix: if level_order is null, set to 0
+    if (classRow.level_order === null || typeof classRow.level_order === 'undefined') {
+      console.warn('Class has null level_order. Setting to 0 for class:', classRow.id);
+      const { error: fixError } = await supabase.from('classes').update({ level_order: 0 }).eq('id', classRow.id);
+      if (fixError) {
+        console.error('CREATE FEE STRUCTURE ERROR: failed to fix class level_order', fixError);
+        return {
+          error: fixError?.message || fixError?.details || fixError?.hint || JSON.stringify(fixError),
+        };
+      }
+    }
+
+    // Check duplicate class names (informational only)
+    const { data: sameNameClasses } = await supabase.from('classes').select('id').eq('name', classRow.name);
+    if (sameNameClasses && sameNameClasses.length > 1) {
+      console.warn('Multiple classes share the same name:', classRow.name, 'ids:', sameNameClasses.map((c: any) => c.id));
+    }
+
+    // INSERT fee structure
+    const { data, error } = await supabase.from('fee_structures').insert(validated).select('id, class_id');
 
     console.log('Response - data:', data);
     console.log('Response - error:', error);
 
     if (error) {
-      console.error('Supabase error:', error);
-      throw error;
+      console.error('CREATE FEE STRUCTURE ERROR:', error);
+      return {
+        error: error?.message || error?.details || error?.hint || JSON.stringify(error),
+      };
     }
 
     if (data && data[0]?.class_id) {
@@ -557,7 +605,7 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
         const createPayload = students.map((student) => ({
           student_id: student.id,
           fee_structure_id: data[0].id,
-          expected_amount: parsed.data.expected_amount,
+          expected_amount: validated.expected_amount,
         }));
 
         const { error: accountError } = await supabase
@@ -577,11 +625,10 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
     console.log('=== CREATE FEE STRUCTURE ACTION END (SUCCESS) ===\n');
     return { success: 'Fee structure created successfully.' };
   } catch (err: any) {
-    console.error('🚨 [GLOBAL CREATE FEE STRUCTURE ACTION ERROR]');
-    console.error('🚨 Error Name:', err?.name);
-    console.error('🚨 Error Message:', err?.message);
-    console.error('🚨 Full Error Details:', JSON.stringify(err, null, 2));
-    return handleActionError(err);
+    console.error('CREATE FEE STRUCTURE ERROR:', err);
+    return {
+      error: err?.message || err?.details || err?.hint || JSON.stringify(err),
+    };
   }
 }
 
