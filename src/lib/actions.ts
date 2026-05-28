@@ -544,6 +544,27 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
     }
 
     // Verify class exists and check for minor data issues
+    const { data: existingStructures, error: existingError } = await supabase
+      .from('fee_structures')
+      .select('id, archived')
+      .eq('class_id', validated.class_id)
+      .eq('academic_year', validated.academic_year)
+      .eq('term', validated.term);
+
+    console.log('Existing fee structures for duplicate check:', existingStructures, existingError);
+
+    if (existingError) {
+      console.error('CREATE FEE STRUCTURE ERROR: duplicate check failed', existingError);
+      return {
+        error: existingError?.message || existingError?.details || existingError?.hint || JSON.stringify(existingError),
+      };
+    }
+
+    const activeDuplicate = (existingStructures ?? []).find((structure: any) => structure.archived === false);
+    if (activeDuplicate) {
+      return { error: 'Fee structure already exists for this class/year/term' };
+    }
+
     const { data: classRow, error: classError } = await supabase
       .from('classes')
       .select('id, name, level_order')
@@ -759,26 +780,10 @@ export async function deleteFeeStructureAction(_prevState: ActionState, formData
       return { error: 'Unable to verify fee structure usage.' };
     }
 
-    // Check for payments on any linked accounts
-    let hasPayments = false;
-    if (accounts && accounts.length > 0) {
-      const accountIds = accounts.map(a => a.id);
-      const { data: payments, error: paymentsError } = await supabase
-        .from('fee_payments')
-        .select('id')
-        .in('student_fee_account_id', accountIds)
-        .limit(1);
+    const hasAccounts = accounts && accounts.length > 0;
 
-      if (paymentsError) {
-        console.error('Error checking payments:', paymentsError);
-        return { error: 'Unable to verify payment history.' };
-      }
-
-      hasPayments = payments && payments.length > 0;
-    }
-
-    if (accounts && accounts.length > 0 && hasPayments) {
-      // Archive instead of delete
+    if (hasAccounts) {
+      // Archive instead of delete when any student fee accounts exist
       const { error: archiveError } = await supabase
         .from('fee_structures')
         .update({ archived: true, updated_at: new Date().toISOString() })
@@ -789,23 +794,29 @@ export async function deleteFeeStructureAction(_prevState: ActionState, formData
         throw archiveError;
       }
 
-      console.log('Fee structure archived (soft delete) due to existing accounts/payments.');
+      console.log('Fee structure archived (soft delete) due to existing student fee accounts.');
+      revalidatePath('/fees');
+      revalidatePath('/dashboard');
+      revalidatePath('/students');
       return { success: 'Fee structure archived successfully (preserved for audit/history).' };
-    } else {
-      // Safe to hard delete
-      const { error: deleteError } = await supabase
-        .from('fee_structures')
-        .delete()
-        .eq('id', feeStructureId);
-
-      if (deleteError) {
-        console.error('Delete error:', deleteError);
-        throw deleteError;
-      }
-
-      console.log('Fee structure hard deleted (no linked data).');
-      return { success: 'Fee structure deleted successfully.' };
     }
+
+    // Safe to hard delete when no linked accounts exist
+    const { error: deleteError } = await supabase
+      .from('fee_structures')
+      .delete()
+      .eq('id', feeStructureId);
+
+    if (deleteError) {
+      console.error('Delete error:', deleteError);
+      throw deleteError;
+    }
+
+    console.log('Fee structure hard deleted (no linked data).');
+    revalidatePath('/fees');
+    revalidatePath('/dashboard');
+    revalidatePath('/students');
+    return { success: 'Fee structure deleted successfully.' };
   } catch (e) {
     console.error('=== FEE STRUCTURE DELETE FAILED ===');
     return handleActionError(e);

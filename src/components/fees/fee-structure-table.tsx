@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useActionState } from 'react';
 import { updateFeeStructureAction, deleteFeeStructureAction } from '@/lib/actions';
 import { Card } from '@/components/ui/card';
@@ -23,6 +24,7 @@ export function FeeStructureTable({
     term: 'TERM_1' as AcademicTerm,
     expected_amount: '',
   });
+  const router = useRouter();
   const [updateState, updateAction, updatePending] = useActionState(updateFeeStructureAction, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteFeeStructureAction, initialState);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -71,8 +73,11 @@ export function FeeStructureTable({
   const handleExecuteDelete = async (structureId: string) => {
     const formData = new FormData();
     formData.append('fee_structure_id', structureId);
-    await deleteAction(formData);
+    const result = (await deleteAction(formData)) as { error?: string } | undefined;
     setDeleteConfirm(null);
+    if (!result?.error) {
+      router.refresh();
+    }
   };
 
   return (
