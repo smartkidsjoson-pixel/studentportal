@@ -291,19 +291,25 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
       .ilike('username', parsed.data.username)
       .maybeSingle();
 
+    // Defensive logging: show lookup outcome
+    console.log('Username lookup for:', parsed.data.username, 'profileFound:', !!profile, 'profileError:', profileError);
+
     if (profileError) {
-      console.error('Auth lookup failure:', profileError);
-      return { error: 'Auth lookup failure. Please try again.' };
+      console.error('Auth lookup error details:', profileError);
+      return { error: `Auth lookup error: ${profileError.message || 'unknown'}` };
     }
 
     if (!profile) {
-      return { error: 'Invalid username.' };
+      console.warn('Username not found:', parsed.data.username);
+      return { error: 'Username not found' };
     }
 
     if (!profile.email) {
-      return { error: 'Missing profile email. Contact support.' };
+      console.error('Profile email missing for user:', profile.id);
+      return { error: 'Account configuration error: missing email' };
     }
 
+    // Attempt authentication using the user's email internally
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: profile.email,
       password: parsed.data.password,
@@ -311,14 +317,16 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
 
     if (authError) {
       const msg = String(authError.message || authError);
-      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('password')) {
+      console.error('Supabase auth failure for user:', profile.id, 'msg:', msg);
+
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('invalid login')) {
         // Log failed login
         try {
           await supabase.from('auth_audit_logs').insert({ user_id: profile.id, username: profile.username ?? parsed.data.username, event: 'failed_login', details: msg });
         } catch (e) {
           console.error('Failed to record failed login audit:', e);
         }
-        return { error: 'Invalid password.' };
+        return { error: 'Incorrect password' };
       }
 
       return { error: `Supabase auth failure: ${msg}` };
