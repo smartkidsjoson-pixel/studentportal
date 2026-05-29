@@ -528,16 +528,17 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
 
     const supabase = await createClient();
 
-    // PRECHECK: existing fee structure for same class/year/term
+    // PRECHECK: existing active fee structure for same class/year/term
     const existing = await supabase
       .from('fee_structures')
       .select('id, class_id, academic_year, term')
       .eq('class_id', validated.class_id)
       .eq('academic_year', validated.academic_year)
       .eq('term', validated.term)
+      .eq('archived', false)
       .maybeSingle();
 
-    console.log('Existing structure:', existing?.data ?? existing);
+    console.log('Existing active structure:', existing?.data ?? existing);
 
     if (existing?.data) {
       return { error: 'Fee structure already exists for this class/year/term' };
@@ -549,7 +550,8 @@ export async function createFeeStructureAction(_prevState: ActionState, formData
       .select('id, archived')
       .eq('class_id', validated.class_id)
       .eq('academic_year', validated.academic_year)
-      .eq('term', validated.term);
+      .eq('term', validated.term)
+      .eq('archived', false);
 
     console.log('Existing fee structures for duplicate check:', existingStructures, existingError);
 
