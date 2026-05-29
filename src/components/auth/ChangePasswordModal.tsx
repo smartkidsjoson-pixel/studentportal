@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { getUserEmailByUsername } from '@/lib/actions';
 
 type Props = {
   isOpen: boolean;
@@ -65,22 +66,17 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
         return;
       }
 
-      const supabase = createClient();
+      const { email, error: lookupError } = await getUserEmailByUsername(username);
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('email')
-        .ilike('username', username)
-        .maybeSingle();
-
-      if (profileError || !profile?.email) {
-        setError('Username not found. Please check and try again.');
+      if (lookupError || !email) {
+        setError(lookupError || 'Username not found.');
         setLoading(false);
         return;
       }
 
+      const supabase = createClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: profile.email,
+        email,
         password: oldPassword,
       });
 
@@ -198,14 +194,14 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 border border-gray-300 text-slate-700 rounded-lg hover:bg-gray-50"
+              className="flex-1 px-4 py-2 border border-gray-300 text-slate-700 rounded-lg hover:bg-gray-50"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               disabled={loading}
             >
               {loading ? 'Updating...' : 'Update Password'}

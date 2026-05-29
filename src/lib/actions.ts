@@ -363,6 +363,38 @@ export async function logoutAction() {
   redirect('/login');
 }
 
+export async function getUserEmailByUsername(username: string): Promise<{ email?: string; error?: string }> {
+  try {
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername) {
+      return { error: 'Username is required.' };
+    }
+
+    const admin = createAdminClient();
+
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('email')
+      .ilike('username', trimmedUsername)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile lookup error:', profileError);
+      return { error: 'Unable to look up username.' };
+    }
+
+    if (!profile || !profile.email) {
+      return { error: 'Username not found or email is missing.' };
+    }
+
+    return { email: profile.email };
+  } catch (e) {
+    console.error('getUserEmailByUsername error:', e);
+    return { error: e instanceof Error ? e.message : 'An error occurred during lookup.' };
+  }
+}
+
 export async function changePasswordAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const currentPassword = String(formData.get('current_password') ?? '');
   const newPassword = String(formData.get('new_password') ?? '');

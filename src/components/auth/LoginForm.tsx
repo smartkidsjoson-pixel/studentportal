@@ -49,14 +49,14 @@ export default function LoginForm() {
         {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
 
         <div className="space-y-6">
-          <button type="submit" disabled={pending} className="primary-btn w-full py-3 text-sm">
+          <button type="submit" disabled={pending} className="primary-btn w-full py-2 text-sm">
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
 
           <button
             type="button"
             onClick={() => setIsChangePasswordOpen(true)}
-            className="w-full text-sm text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+            className="w-full text-xs text-blue-600 hover:text-blue-800 hover:underline font-semibold"
           >
             Change Password
           </button>
