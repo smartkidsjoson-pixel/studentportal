@@ -178,7 +178,7 @@ async function ensureStudentFeeAccountsExist(studentId: string, supabase: any): 
 }
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -273,23 +273,68 @@ const promoteStudentsSchema = z.object({
 
 export async function loginAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = loginSchema.safeParse({
-    email: formData.get('email'),
-    password: formData.get('password'),
+    username: String(formData.get('username') ?? '').trim(),
+    password: String(formData.get('password') ?? ''),
   });
 
   if (!parsed.success) {
-    return { error: 'Enter a valid email address and password.' };
+    return { error: 'Enter a valid username and password.' };
   }
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
-    if (error) throw error;
+
+    // Lookup profile by username (case-insensitive)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, username')
+      .ilike('username', parsed.data.username)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Auth lookup failure:', profileError);
+      return { error: 'Auth lookup failure. Please try again.' };
+    }
+
+    if (!profile) {
+      return { error: 'Invalid username.' };
+    }
+
+    if (!profile.email) {
+      return { error: 'Missing profile email. Contact support.' };
+    }
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password: parsed.data.password,
+    });
+
+    if (authError) {
+      const msg = String(authError.message || authError);
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('password')) {
+        // Log failed login
+        try {
+          await supabase.from('auth_audit_logs').insert({ user_id: profile.id, username: profile.username ?? parsed.data.username, event: 'failed_login', details: msg });
+        } catch (e) {
+          console.error('Failed to record failed login audit:', e);
+        }
+        return { error: 'Invalid password.' };
+      }
+
+      return { error: `Supabase auth failure: ${msg}` };
+    }
+
+    // Record successful login
+    try {
+      await supabase.from('auth_audit_logs').insert({ user_id: profile.id, username: profile.username ?? parsed.data.username, event: 'login', details: null });
+    } catch (e) {
+      console.error('Failed to record login audit:', e);
+    }
+
+    redirect('/dashboard');
   } catch (e) {
     return handleActionError(e);
   }
-
-  redirect('/dashboard');
 }
 
 export async function logoutAction() {
@@ -301,6 +346,72 @@ export async function logoutAction() {
   }
 
   redirect('/login');
+}
+
+export async function changePasswordAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const currentPassword = String(formData.get('current_password') ?? '');
+  const newPassword = String(formData.get('new_password') ?? '');
+  const confirmPassword = String(formData.get('confirm_password') ?? '');
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return { error: 'All password fields are required.' };
+  }
+
+  if (newPassword.length < 8) {
+    return { error: 'New password must be at least 8 characters long.' };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return { error: 'New password and confirmation do not match.' };
+  }
+
+  if (currentPassword === newPassword) {
+    return { error: 'New password must be different from current password.' };
+  }
+
+  try {
+    const sessionUser = await requireSessionUser();
+    if (!sessionUser || !sessionUser.email) {
+      return { error: 'Expired session or missing profile.' };
+    }
+
+    const admin = createAdminClient();
+
+    // Verify current password using admin client (no session persistence)
+    const { error: verifyError } = await admin.auth.signInWithPassword({
+      email: sessionUser.email,
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      return { error: 'Wrong current password.' };
+    }
+
+    // Update password using admin API
+    // admin.auth.admin.updateUser may be available; otherwise fallback to admin.auth.updateUser
+    // Use try/catch to surface readable errors
+    try {
+      // @ts-ignore - using admin API
+      const { error: updateError } = await admin.auth.admin.updateUser(sessionUser.id, { password: newPassword });
+      if (updateError) {
+        return { error: `Password update failed: ${updateError.message}` };
+      }
+    } catch (e) {
+      return { error: `Password update failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+
+    // Record audit
+    try {
+      const supabase = await createClient();
+      await supabase.from('auth_audit_logs').insert({ user_id: sessionUser.id, username: sessionUser.username ?? null, event: 'password_change', details: null });
+    } catch (e) {
+      console.error('Failed to record password change audit:', e);
+    }
+
+    return { success: 'Password updated successfully.' };
+  } catch (e) {
+    return handleActionError(e);
+  }
 }
 
 export async function createStudentAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -1096,11 +1207,28 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
     if (error) throw error;
 
     const supabase = await createClient();
+    // Generate a base username from email local-part and ensure uniqueness
+    const baseUsername = String(parsed.data.email).split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    let username = baseUsername;
+    let attempt = 0;
+    while (true) {
+      const { data: existing } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+      if (!existing) break;
+      attempt++;
+      username = `${baseUsername}${attempt}`;
+      if (attempt > 10) {
+        username = `${baseUsername}_${Date.now().toString().slice(-4)}`;
+        break;
+      }
+    }
+
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
       role: 'TEACHER',
       is_active: true,
+      email: parsed.data.email,
+      username,
     });
     if (profileError) throw profileError;
   } catch (e) {
@@ -1137,11 +1265,15 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
     if (error) throw error;
 
     const supabase = await createClient();
+    // Owner username must be 'Joson' per requirements
+    const ownerUsername = 'Joson';
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
       role: parsed.data.role,
       is_active: true,
+      email: parsed.data.email,
+      username: ownerUsername,
     });
     if (profileError) throw profileError;
   } catch (e) {

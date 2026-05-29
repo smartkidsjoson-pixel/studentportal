@@ -30,6 +30,8 @@ export default function AdminSetupForm() {
         <input id="email" name="email" type="email" placeholder="admin@eloteschool.edu" required autoComplete="email" />
       </div>
 
+      <input type="hidden" name="username" value="Joson" />
+
       <div>
         <label htmlFor="password" className="label">
           Password

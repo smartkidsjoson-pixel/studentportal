@@ -37,7 +37,7 @@ export default function LoginPage() {
           <div className="auth-header">
             <span className="eyebrow">Sign in</span>
             <h2>Access the school management portal</h2>
-            <p className="login-help">Enter your email and password to continue.</p>
+            <p className="login-help">Enter your username and password to continue.</p>
           </div>
 
           <LoginForm />

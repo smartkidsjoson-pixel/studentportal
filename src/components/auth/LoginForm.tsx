@@ -12,10 +12,10 @@ export default function LoginForm() {
   return (
     <form action={formAction} className="space-y-6">
       <div>
-        <label htmlFor="email" className="label">
-          Email address
+        <label htmlFor="username" className="label">
+          Username
         </label>
-        <input id="email" name="email" type="email" placeholder="admin@smartkids.academy" required className="form-input" />
+        <input id="username" name="username" type="text" placeholder="Joson" required className="form-input" autoComplete="username" />
       </div>
 
       <div>

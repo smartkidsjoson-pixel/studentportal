@@ -1,4 +1,4 @@
-﻿export type UserRole = 'OWNER' | 'TEACHER';
+﻿export type UserRole = 'OWNER' | 'TEACHER' | 'DEVELOPER';
 export type StudentStatus = 'active' | 'transferred' | 'graduated' | 'inactive';
 export type StudentGender = 'male' | 'female' | 'other';
 
@@ -29,6 +29,7 @@ export type SessionUser = {
   id: string;
   email: string;
   fullName: string | null;
+  username?: string | null;
   role: UserRole;
 };
 
