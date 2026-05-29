@@ -9,8 +9,7 @@ type Props = {
 };
 
 export default function ChangePasswordModal({ isOpen, onClose }: Props) {
-  const [step, setStep] = useState<'email' | 'password'>('email');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,8 +20,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   const resetForm = () => {
-    setStep('email');
-    setEmail('');
+    setUsername('');
     setOldPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -36,23 +34,6 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
     onClose();
   };
 
-  const handleEmailSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError('');
-
-    if (!email.trim()) {
-      setError('Please enter your email address.');
-      return;
-    }
-
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-
-    setStep('password');
-  };
-
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
@@ -60,8 +41,8 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
     setLoading(true);
 
     try {
-      if (!oldPassword || !newPassword || !confirmPassword) {
-        setError('All password fields are required.');
+      if (!username.trim() || !oldPassword || !newPassword || !confirmPassword) {
+        setError('All fields are required.');
         setLoading(false);
         return;
       }
@@ -85,13 +66,26 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
       }
 
       const supabase = createClient();
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('email')
+        .ilike('username', username)
+        .maybeSingle();
+
+      if (profileError || !profile?.email) {
+        setError('Username not found. Please check and try again.');
+        setLoading(false);
+        return;
+      }
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: profile.email,
         password: oldPassword,
       });
 
       if (signInError) {
-        setError('Unable to sign in with the provided email and current password.');
+        setError('Unable to authenticate with the provided username and current password.');
         setLoading(false);
         return;
       }
@@ -107,12 +101,12 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
       }
 
       await supabase.auth.signOut();
-      setSuccess('Password updated successfully. Reloading to sign in fresh...');
+      setSuccess('Password updated successfully. Reloading to sign in with your new password...');
       setLoading(false);
 
       window.setTimeout(() => {
         window.location.reload();
-      }, 1200);
+      }, 1500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unexpected error occurred.');
       setLoading(false);
@@ -125,11 +119,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-semibold">Change Password</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              {step === 'email'
-                ? 'Enter your email to continue.'
-                : 'Now enter your current password and choose a new password.'}
-            </p>
+            <p className="text-sm text-slate-500 mt-1">Enter your username and current password to set a new one.</p>
           </div>
           <button
             onClick={handleClose}
@@ -140,116 +130,88 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        {step === 'email' ? (
-          <form onSubmit={handleEmailSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="reset-email" className="label">
-                Email Address
-              </label>
-              <input
-                id="reset-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="form-input w-full"
-                autoComplete="email"
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="modal-username" className="label">
+              Username
+            </label>
+            <input
+              id="modal-username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
+              className="form-input w-full"
+              autoComplete="username"
+            />
+          </div>
 
-            {error ? <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p> : null}
+          <div>
+            <label htmlFor="modal-old-password" className="label">
+              Old Password
+            </label>
+            <input
+              id="modal-old-password"
+              type="password"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              placeholder="Enter current password"
+              className="form-input w-full"
+              autoComplete="current-password"
+            />
+          </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="flex-1 px-4 py-3 border border-gray-300 text-slate-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                Continue
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-sm text-slate-600">
-                Account email: <span className="font-semibold text-slate-900">{email}</span>
-              </p>
-            </div>
+          <div>
+            <label htmlFor="modal-new-password" className="label">
+              New Password
+            </label>
+            <input
+              id="modal-new-password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter new password (min 8 chars)"
+              className="form-input w-full"
+              autoComplete="new-password"
+            />
+          </div>
 
-            <div>
-              <label htmlFor="modal-old-password" className="label">
-                Old Password
-              </label>
-              <input
-                id="modal-old-password"
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                placeholder="Enter current password"
-                className="form-input w-full"
-                autoComplete="current-password"
-              />
-            </div>
+          <div>
+            <label htmlFor="modal-confirm-password" className="label">
+              Confirm New Password
+            </label>
+            <input
+              id="modal-confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+              className="form-input w-full"
+              autoComplete="new-password"
+            />
+          </div>
 
-            <div>
-              <label htmlFor="modal-new-password" className="label">
-                New Password
-              </label>
-              <input
-                id="modal-new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password (min 8 chars)"
-                className="form-input w-full"
-                autoComplete="new-password"
-              />
-            </div>
+          {error ? <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p> : null}
+          {success ? <p className="text-sm text-emerald-700 bg-emerald-50 p-3 rounded-lg">{success}</p> : null}
 
-            <div>
-              <label htmlFor="modal-confirm-password" className="label">
-                Confirm New Password
-              </label>
-              <input
-                id="modal-confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-                className="form-input w-full"
-                autoComplete="new-password"
-              />
-            </div>
-
-            {error ? <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p> : null}
-            {success ? <p className="text-sm text-emerald-700 bg-emerald-50 p-3 rounded-lg">{success}</p> : null}
-
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setStep('email')}
-                className="w-full sm:w-auto px-4 py-3 border border-gray-300 text-slate-700 rounded-lg hover:bg-gray-50"
-                disabled={loading}
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                disabled={loading}
-              >
-                {loading ? 'Updating...' : 'Update Password'}
-              </button>
-            </div>
-          </form>
-        )}
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex-1 px-4 py-3 border border-gray-300 text-slate-700 rounded-lg hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Updating...' : 'Update Password'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
