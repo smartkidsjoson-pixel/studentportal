@@ -553,6 +553,8 @@ create policy owner_full_access_on_fee_payments
 create or replace function public.current_role()
 returns public.app_role
 language sql
+security definer
+set search_path = public
 stable
 as $$
   select role from public.profiles where id = auth.uid()

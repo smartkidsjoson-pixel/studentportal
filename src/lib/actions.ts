@@ -282,10 +282,12 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
   }
 
   try {
-    const supabase = await createClient();
+    // Use admin client for profile lookup during login to bypass RLS
+    // (user is not yet authenticated, so RLS would cause infinite recursion)
+    const admin = createAdminClient();
 
     // Lookup profile by username (case-insensitive)
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
       .select('id, email, username')
       .ilike('username', parsed.data.username)
@@ -308,6 +310,9 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
       console.error('Profile email missing for user:', profile.id);
       return { error: 'Account configuration error: missing email' };
     }
+
+    // Now use authenticated client for signIn and audit logging
+    const supabase = await createClient();
 
     // Attempt authentication using the user's email internally
     const { error: authError } = await supabase.auth.signInWithPassword({
