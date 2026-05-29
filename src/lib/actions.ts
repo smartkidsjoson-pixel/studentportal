@@ -281,36 +281,36 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
     return { error: 'Enter a valid username and password.' };
   }
 
+  // Use admin client for profile lookup during login to bypass RLS
+  // (user is not yet authenticated, so RLS would cause infinite recursion)
+  const admin = createAdminClient();
+
+  // Lookup profile by username (case-insensitive)
+  const { data: profile, error: profileError } = await admin
+    .from('profiles')
+    .select('id, email, username')
+    .ilike('username', parsed.data.username)
+    .maybeSingle();
+
+  // Defensive logging: show lookup outcome
+  console.log('Username lookup for:', parsed.data.username, 'profileFound:', !!profile, 'profileError:', profileError);
+
+  if (profileError) {
+    console.error('Auth lookup error details:', profileError);
+    return { error: `Auth lookup error: ${profileError.message || 'unknown'}` };
+  }
+
+  if (!profile) {
+    console.warn('Username not found:', parsed.data.username);
+    return { error: 'Username not found' };
+  }
+
+  if (!profile.email) {
+    console.error('Profile email missing for user:', profile.id);
+    return { error: 'Account configuration error: missing email' };
+  }
+
   try {
-    // Use admin client for profile lookup during login to bypass RLS
-    // (user is not yet authenticated, so RLS would cause infinite recursion)
-    const admin = createAdminClient();
-
-    // Lookup profile by username (case-insensitive)
-    const { data: profile, error: profileError } = await admin
-      .from('profiles')
-      .select('id, email, username')
-      .ilike('username', parsed.data.username)
-      .maybeSingle();
-
-    // Defensive logging: show lookup outcome
-    console.log('Username lookup for:', parsed.data.username, 'profileFound:', !!profile, 'profileError:', profileError);
-
-    if (profileError) {
-      console.error('Auth lookup error details:', profileError);
-      return { error: `Auth lookup error: ${profileError.message || 'unknown'}` };
-    }
-
-    if (!profile) {
-      console.warn('Username not found:', parsed.data.username);
-      return { error: 'Username not found' };
-    }
-
-    if (!profile.email) {
-      console.error('Profile email missing for user:', profile.id);
-      return { error: 'Account configuration error: missing email' };
-    }
-
     // Now use authenticated client for signIn and audit logging
     const supabase = await createClient();
 
@@ -343,11 +343,13 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
     } catch (e) {
       console.error('Failed to record login audit:', e);
     }
-
-    redirect('/dashboard');
   } catch (e) {
     return handleActionError(e);
   }
+
+  // redirect() must be called outside try-catch to avoid being caught by error handler
+  // Next.js redirect() throws a special error that the framework must handle
+  redirect('/dashboard');
 }
 
 export async function logoutAction() {
