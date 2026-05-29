@@ -190,18 +190,18 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
           {error ? <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p> : null}
           {success ? <p className="text-sm text-emerald-700 bg-emerald-50 p-3 rounded-lg">{success}</p> : null}
 
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+          <div className="grid grid-cols-2 gap-3 pt-2">
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-slate-700 rounded-lg hover:bg-gray-50"
+              className="w-full py-2.5 px-4 bg-transparent border border-gray-300 text-gray-700 font-medium rounded-lg text-center hover:bg-gray-50 transition-colors"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="w-full py-2.5 px-4 bg-[#15803d] text-white font-medium rounded-lg text-center shadow-sm hover:bg-[#166534] transition-colors disabled:opacity-65"
               disabled={loading}
             >
               {loading ? 'Updating...' : 'Update Password'}
