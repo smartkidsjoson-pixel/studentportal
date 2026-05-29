@@ -19,27 +19,44 @@ export default function LoginForm() {
           <label htmlFor="username" className="label">
             Username
           </label>
-          <input id="username" name="username" type="text" placeholder="Joson" required className="form-input" autoComplete="username" />
+          <input
+            id="username"
+            name="username"
+            type="text"
+            placeholder="Joson"
+            required
+            className="form-input"
+            autoComplete="username"
+          />
         </div>
 
         <div>
           <label htmlFor="password" className="label">
             Password
           </label>
-          <input id="password" name="password" type="password" placeholder="Enter your password" required minLength={6} className="form-input" />
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Enter your password"
+            required
+            minLength={6}
+            className="form-input"
+            autoComplete="current-password"
+          />
         </div>
 
         {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
 
-        <div className="space-y-2">
-          <button type="submit" disabled={pending} className="primary-btn w-full py-2 text-sm">
+        <div className="space-y-4">
+          <button type="submit" disabled={pending} className="primary-btn w-full py-3 text-sm">
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
 
           <button
             type="button"
             onClick={() => setIsChangePasswordOpen(true)}
-            className="w-full py-1 text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+            className="w-full mt-4 text-sm text-blue-600 hover:text-blue-800 hover:underline font-semibold"
           >
             Change Password
           </button>
