@@ -59,6 +59,7 @@ export async function getTeachers(): Promise<TeacherProfile[]> {
   const { data, error } = await supabase
     .from('staff_directory')
     .select('id, full_name, role, is_active, assigned_classes')
+    .eq('role', 'TEACHER')
     .order('full_name', { ascending: true });
 
   if (error) {
@@ -66,8 +67,7 @@ export async function getTeachers(): Promise<TeacherProfile[]> {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('profiles')
       .select('id, full_name, role, is_active, username')
-      .in('role', ['OWNER', 'TEACHER'])
-      .not('username', 'eq', 'developer')
+      .eq('role', 'TEACHER')
       .order('full_name', { ascending: true });
 
     if (fallbackError) {
