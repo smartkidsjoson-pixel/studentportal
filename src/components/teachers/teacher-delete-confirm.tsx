@@ -76,7 +76,6 @@ export function TeacherDeleteConfirm({ teacher }: { teacher: TeacherProfile }) {
               color: '#666',
               fontSize: '0.9rem'
             }}>
-              <li>✓ All class assignments will be removed</li>
               <li>✓ The teacher account will be deleted from the system</li>
               <li>✓ Student records and fees will be preserved</li>
               <li>✗ This action cannot be undone</li>
