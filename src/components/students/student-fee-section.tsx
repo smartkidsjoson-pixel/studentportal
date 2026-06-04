@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useActionState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
   deleteFeePaymentAction,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/actions';
 import type {
   FeePaymentHistoryItem,
+  StudentDirectoryItem,
   StudentFeeAccountSummary,
 } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
@@ -17,48 +19,153 @@ import { formatCurrency } from '@/lib/utils';
 const initialState = {} as { error?: string; success?: string };
 
 function feeAccountLabel(account: StudentFeeAccountSummary) {
-  return `${account.academic_year} • ${account.term.replace('_', ' ')} • ${account.class_name ?? 'Class'}`;
+  const termLabel = account.term ? account.term.replace('_', ' ') : 'Unknown term';
+  return `${account.academic_year ?? 'Year unknown'} • ${termLabel} • ${account.class_name ?? 'Class'}`;
 }
 
 export function StudentFeeSection({
   studentId,
+  student,
   accounts,
   payments,
 }: {
   studentId: string;
+  student?: Pick<StudentDirectoryItem, 'fee_expected' | 'total_paid' | 'balance'>;
   accounts: StudentFeeAccountSummary[];
   payments: FeePaymentHistoryItem[];
 }) {
+  const router = useRouter();
   const [showRecordForm, setShowRecordForm] = useState(false);
-  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editingPayment, setEditingPayment] = useState<FeePaymentHistoryItem | null>(null);
   const [recordState, recordAction, recordPending] = useActionState(recordFeePaymentAction, initialState);
   const [updateState, updateAction, updatePending] = useActionState(updateFeePaymentAction, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteFeePaymentAction, initialState);
   const recordFormRef = useRef<HTMLFormElement>(null);
 
-  const selectedEditPayment = useMemo(
-    () => payments.find((payment) => payment.id === editingPaymentId) ?? null,
-    [editingPaymentId, payments],
-  );
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!paymentId) {
+      console.error('Missing payment ID for delete action');
+      return;
+    }
+
+    const confirmed = window.confirm('Are you sure you want to delete this payment? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('payment_id', paymentId);
+    formData.append('student_id', studentId);
+    await deleteAction(formData);
+  };
+
+  useEffect(() => {
+    console.log('StudentFeeSection loaded with data:', { studentId, accounts, payments });
+    console.log('Accounts count:', accounts.length);
+    accounts.forEach((acc, idx) => {
+      console.log(`Account ${idx}:`, {
+        id: acc.id,
+        expected_amount: acc.expected_amount,
+        total_paid: acc.total_paid,
+        balance: acc.balance,
+        academic_year: acc.academic_year,
+        term: acc.term,
+      });
+    });
+  }, [studentId, accounts, payments]);
 
   useEffect(() => {
     if (recordState.success) {
       recordFormRef.current?.reset();
       setShowRecordForm(false);
+      router.refresh(); // Ensure UI updates immediately
     }
-  }, [recordState.success]);
+    if (recordState.error) {
+      console.error('Payment recording error:', recordState.error);
+    }
+  }, [recordState.success, recordState.error, router]);
 
-  const totals = useMemo(() => {
-    const expected = accounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0);
-    const paid = accounts.reduce((sum, account) => sum + Number(account.total_paid ?? 0), 0);
-    const balance = expected - paid;
+  useEffect(() => {
+    if (updateState.success) {
+      setEditingPayment(null);
+      router.refresh(); // Ensure UI updates immediately after payment update
+    }
+  }, [updateState.success, router]);
 
-    return {
-      expected,
-      paid,
-      balance,
+  useEffect(() => {
+    if (deleteState.success) {
+      router.refresh(); // Ensure UI updates immediately after payment deletion
+    }
+  }, [deleteState.success, router]);
+
+  const normalizeId = (value: unknown) => String(value ?? '').trim();
+
+  const normalizeTermValue = (term?: string) =>
+    String(term ?? '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .trim();
+
+  const normalizeYearValue = (year?: string) => String(year ?? '').trim();
+
+  const buildTermKey = ({ academic_year, term, academic_term, term_name }: any) => {
+    const year = normalizeYearValue(academic_year);
+    const normalizedTerm = normalizeTermValue(term ?? academic_term ?? term_name);
+    return `${year}-${normalizedTerm}`;
+  };
+
+  const termStats = useMemo(() => {
+    const termGroups: Record<string, {
+      accounts: StudentFeeAccountSummary[];
+      expected: number;
+      collected: number;
+      balance: number;
+    }> = {};
+
+    const addTermGroup = (termKey: string) => {
+      if (!termGroups[termKey]) {
+        termGroups[termKey] = {
+          accounts: [],
+          expected: 0,
+          collected: 0,
+          balance: 0,
+        };
+      }
     };
-  }, [accounts]);
+
+    accounts.forEach((account) => {
+      const termKey = buildTermKey(account);
+      addTermGroup(termKey);
+      termGroups[termKey].accounts.push(account);
+      termGroups[termKey].expected += Number(account.expected_amount ?? 0);
+    });
+
+    Object.values(termGroups).forEach((group) => {
+      group.collected = group.accounts.reduce((sum, account) => {
+        const normalizedAccountId = normalizeId(account.id);
+        const termPayments = payments.filter((payment) => normalizeId(payment.student_fee_account_id) === normalizedAccountId);
+        return sum + termPayments.reduce((subSum, payment) => subSum + Number(payment.amount ?? 0), 0);
+      }, 0);
+      group.balance = group.expected - group.collected;
+    });
+
+    return termGroups;
+  }, [accounts, payments]);
+
+  const overallTotals = useMemo(() => {
+    if (student) {
+      return {
+        expected: Number(student.fee_expected ?? 0),
+        collected: Number(student.total_paid ?? 0),
+        balance: Number(student.balance ?? 0),
+      };
+    }
+
+    const totalExpected = Object.values(termStats).reduce((sum, term) => sum + term.expected, 0);
+    const totalCollected = Object.values(termStats).reduce((sum, term) => sum + term.collected, 0);
+    const totalBalance = totalExpected - totalCollected;
+    return { expected: totalExpected, collected: totalCollected, balance: totalBalance };
+  }, [student, termStats]);
 
   return (
     <div className="card">
@@ -67,22 +174,75 @@ export function StudentFeeSection({
         <p>Review the student fee account, payment status and record new payments.</p>
       </div>
 
+      {/* Overall Summary */}
       <div className="grid stats" style={{ marginBottom: '1rem' }}>
         <div className="card small-card">
-          <h3>Expected</h3>
-          <div className="stat-value">{formatCurrency(totals.expected)}</div>
-          <p className="muted">Total expected for all active fee accounts.</p>
+          <h3>Total Expected</h3>
+          <div className="stat-value">{formatCurrency(overallTotals.expected)}</div>
+          <p className="muted">Across all terms</p>
         </div>
         <div className="card small-card">
-          <h3>Collected</h3>
-          <div className="stat-value">{formatCurrency(totals.paid)}</div>
-          <p className="muted">Payments posted for this student.</p>
+          <h3>Total Collected</h3>
+          <div className="stat-value">{formatCurrency(overallTotals.collected)}</div>
+          <p className="muted">Across all terms</p>
         </div>
         <div className="card small-card">
-          <h3>Balance</h3>
-          <div className="stat-value">{formatCurrency(totals.balance)}</div>
-          <p className="muted">Remaining fee balance.</p>
+          <h3>Total Balance</h3>
+          <div className="stat-value">{formatCurrency(overallTotals.balance)}</div>
+          <p className="muted">Remaining across all terms</p>
         </div>
+      </div>
+
+      {/* Term-wise breakdown */}
+      <div style={{ marginBottom: '1rem' }}>
+        <h3>Term Breakdown</h3>
+        {Object.entries(termStats).map(([termKey, termData]) => {
+          const currentTerm = termKey.replace('-', ' • ');
+          const matchingAccounts = termData.accounts;
+
+          const normalizeId = (value: unknown) => String(value ?? '').trim();
+          const termCollected = matchingAccounts.reduce((sum, account) => {
+            const normalizedAccountId = normalizeId(account.id);
+            const termPayments = payments.filter((payment) => {
+              const normalizedPaymentAccountId = normalizeId(payment.student_fee_account_id);
+              return normalizedPaymentAccountId === normalizedAccountId;
+            });
+
+            console.log('👉 [TERM DEBUG] account.id =', account.id, 'normalized =', normalizedAccountId);
+            console.log('👉 [TERM DEBUG] payments student_fee_account_id values =', payments.map((p) => normalizeId(p.student_fee_account_id)));
+            console.log('👉 [TERM DEBUG] filteredPayments.length =', termPayments.length, 'for accountId=', normalizedAccountId);
+
+            const fallbackPayments = termPayments.length > 0
+              ? termPayments
+              : payments.filter((payment) => buildTermKey(payment) === termKey);
+
+            return sum + fallbackPayments.reduce((subSum, payment) => subSum + Number(payment.amount ?? 0), 0);
+          }, 0);
+
+          const termBalance = matchingAccounts.reduce((sum, account) => sum + Number(account.expected_amount ?? 0), 0) - termCollected;
+
+          return (
+            <div key={termKey} className="card" style={{ marginBottom: '0.5rem', padding: '1rem' }}>
+              <div className="grid stats">
+                <div className="card small-card">
+                  <h4>{currentTerm}</h4>
+                  <div className="stat-value">{formatCurrency(termData.expected)}</div>
+                  <p className="muted">Expected</p>
+                </div>
+                <div className="card small-card">
+                  <h4>&nbsp;</h4>
+                  <div className="stat-value">{formatCurrency(termCollected)}</div>
+                  <p className="muted">Collected</p>
+                </div>
+                <div className="card small-card">
+                  <h4>&nbsp;</h4>
+                  <div className="stat-value">{formatCurrency(termBalance)}</div>
+                  <p className="muted">Balance</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div style={{ marginBottom: '1rem' }}>
@@ -93,7 +253,16 @@ export function StudentFeeSection({
 
       {showRecordForm ? (
         accounts.length ? (
-          <form ref={recordFormRef} action={recordAction} className="card" style={{ padding: '1rem' }}>
+          <form
+            ref={recordFormRef}
+            action={recordAction}
+            className="card"
+            style={{ padding: '1rem' }}
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              const formData = new FormData(event.currentTarget);
+              console.log('Submitting fee payment form:', Object.fromEntries(formData.entries()));
+            }}
+          >
             <input type="hidden" name="student_id" value={studentId} />
             <div className="form-grid">
               <div>
@@ -117,8 +286,12 @@ export function StudentFeeSection({
             </div>
             <div className="form-actions">
               <button type="submit" disabled={recordPending}>{recordPending ? 'Saving...' : 'Save payment'}</button>
-              {recordState.error ? <span className="muted">{recordState.error}</span> : null}
-              {recordState.success ? <span className="muted">{recordState.success}</span> : null}
+              {recordState.error ? (
+                <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                  ❌ {recordState.error}
+                </span>
+              ) : null}
+              {recordState.success ? <span style={{ color: '#388e3c', fontWeight: 'bold' }}>✓ {recordState.success}</span> : null}
             </div>
           </form>
         ) : (
@@ -142,27 +315,32 @@ export function StudentFeeSection({
           </thead>
           <tbody>
             {payments.length ? (
-              payments.map((payment) => (
-                <tr key={payment.id}>
-                  <td>{new Date(payment.payment_date).toLocaleDateString()}</td>
-                  <td>{formatCurrency(Number(payment.amount))}</td>
-                  <td>{payment.receipt_number}</td>
-                  <td>{`${payment.academic_year} ${payment.term.replace('_', ' ')}`}</td>
-                  <td>{payment.class_name ?? 'Unknown'}</td>
-                  <td>
-                    <button type="button" className="secondary" onClick={() => setEditingPaymentId(payment.id)}>
-                      Edit
-                    </button>
-                    <form action={deleteAction} style={{ display: 'inline-block', marginLeft: '0.5rem' }}>
-                      <input type="hidden" name="payment_id" value={payment.id} />
-                      <input type="hidden" name="student_id" value={studentId} />
-                      <button type="submit" className="danger" disabled={deletePending}>
+              payments.map((payment) => {
+                const paymentId = payment.id ?? (payment as any).payment_id ?? '';
+                return (
+                  <tr key={paymentId || payment.id}>
+                    <td>{new Date(payment.payment_date).toLocaleDateString()}</td>
+                    <td>{formatCurrency(Number(payment.amount))}</td>
+                    <td>{payment.receipt_number}</td>
+                    <td>{`${payment.academic_year} ${payment.term.replace('_', ' ')}`}</td>
+                    <td>{payment.class_name ?? 'Unknown'}</td>
+                    <td>
+                      <button type="button" className="secondary" onClick={() => setEditingPayment(payment)}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        disabled={deletePending}
+                        style={{ marginLeft: '0.5rem' }}
+                        onClick={() => handleDeletePayment(paymentId)}
+                      >
                         Delete
                       </button>
-                    </form>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={6} className="muted">
@@ -174,11 +352,11 @@ export function StudentFeeSection({
         </table>
       </div>
 
-      {editingPaymentId && selectedEditPayment ? (
+      {editingPayment ? (
         <form action={updateAction} className="card" style={{ padding: '1rem', marginTop: '1rem' }}>
-          <input type="hidden" name="payment_id" value={selectedEditPayment.id} />
+          <input type="hidden" name="payment_id" value={editingPayment.id} />
           <input type="hidden" name="student_id" value={studentId} />
-          <input type="hidden" name="student_fee_account_id" value={selectedEditPayment.student_fee_account_id} />
+          <input type="hidden" name="student_fee_account_id" value={editingPayment.student_fee_account_id} />
           <div className="form-grid">
             <div>
               <label className="label" htmlFor="edit-payment-amount">Amount</label>
@@ -188,7 +366,7 @@ export function StudentFeeSection({
                 type="number"
                 min="1"
                 step="0.01"
-                defaultValue={selectedEditPayment.amount}
+                defaultValue={editingPayment.amount}
                 required
               />
             </div>
@@ -197,14 +375,24 @@ export function StudentFeeSection({
               <input
                 id="edit-receipt-number"
                 name="receipt_number"
-                defaultValue={selectedEditPayment.receipt_number}
+                defaultValue={editingPayment.receipt_number}
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="edit-payment-date">Payment date</label>
+              <input
+                id="edit-payment-date"
+                name="payment_date"
+                type="date"
+                defaultValue={new Date(editingPayment.payment_date).toISOString().split('T')[0]}
                 required
               />
             </div>
           </div>
           <div className="form-actions">
             <button type="submit" disabled={updatePending}>{updatePending ? 'Saving...' : 'Update payment'}</button>
-            <button type="button" className="secondary" onClick={() => setEditingPaymentId(null)}>
+            <button type="button" className="secondary" onClick={() => setEditingPayment(null)}>
               Cancel
             </button>
             {updateState.error ? <span className="muted">{updateState.error}</span> : null}

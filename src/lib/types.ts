@@ -1,11 +1,35 @@
-﻿export type UserRole = 'OWNER' | 'TEACHER';
+﻿export type UserRole = 'OWNER' | 'TEACHER' | 'DEVELOPER';
 export type StudentStatus = 'active' | 'transferred' | 'graduated' | 'inactive';
 export type StudentGender = 'male' | 'female' | 'other';
+
+export type StudentTransition = {
+  id: string;
+  student_id: string;
+  old_status: StudentStatus | null;
+  new_status: StudentStatus;
+  transition_reason: string | null;
+  transition_data: Record<string, any> | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type TransferStudentResult = {
+  success: boolean;
+  message: string;
+  student_id: string | null;
+};
+
+export type DeleteStudentResult = {
+  success: boolean;
+  message: string;
+  deleted_records: number;
+};
 
 export type SessionUser = {
   id: string;
   email: string;
   fullName: string | null;
+  username?: string | null;
   role: UserRole;
 };
 
@@ -14,6 +38,7 @@ export type TeacherProfile = {
   full_name: string;
   role: UserRole;
   is_active: boolean;
+  assigned_classes?: string | null;
 };
 
 export type TeacherClassAssignment = {
@@ -96,7 +121,12 @@ export type StudentDirectoryItem = {
   profile_photo_url: string | null;
   class_name: string | null;
   class_id: string | null;
+  level_order?: number;
   created_at: string | null;
+  fee_expected: number;
+  total_paid: number;
+  balance: number;
+  payment_status: 'Cleared' | 'Partial' | 'Not Paid' | null;
 };
 
 export type DashboardStats = {

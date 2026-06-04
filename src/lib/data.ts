@@ -57,14 +57,29 @@ export async function getClasses(user?: SessionUser): Promise<ClassSummary[]> {
 export async function getTeachers(): Promise<TeacherProfile[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, role, is_active')
-    .in('role', ['OWNER', 'TEACHER'])
+    .from('staff_directory')
+    .select('id, full_name, role, is_active, assigned_classes')
     .order('full_name', { ascending: true });
 
   if (error) {
-    console.error(error);
-    return [];
+    console.error('Failed to read staff_directory view, falling back to profiles', error);
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, is_active')
+      .in('role', ['OWNER', 'TEACHER'])
+      .order('full_name', { ascending: true });
+
+    if (fallbackError) {
+      console.error('Failed to read profiles fallback for teachers', fallbackError);
+      return [];
+    }
+
+    return (
+      fallbackData?.map((row) => ({
+        ...row,
+        assigned_classes: 'None',
+      })) ?? []
+    );
   }
 
   return data ?? [];
@@ -107,43 +122,88 @@ export async function getStudents(params?: {
   pageSize?: number;
 }, user?: SessionUser): Promise<StudentDirectoryItem[]> {
   const supabase = await createClient();
-  const query = params?.query ? sanitizeSearchQuery(params.query) : undefined;
+  const searchQuery = params?.query ? sanitizeSearchQuery(params.query) : undefined;
   const pageSize = params?.pageSize ?? 12;
   const page = params?.page && params.page > 0 ? params.page : 1;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let builder = supabase
-    .from('student_directory')
-    .select('*')
-    .order('full_name', { ascending: true })
-    .range(from, to);
-
-  if (user?.role === 'TEACHER') {
-    const teacherClassIds = await getTeacherClassIds(supabase, user.id);
-    builder = builder.in('class_id', teacherClassIds);
-    if (!params?.status) {
-      builder = builder.eq('status', 'active');
+  const applyStudentFilters = async (builder: any) => {
+    if (user?.role === 'TEACHER') {
+      const teacherClassIds = await getTeacherClassIds(supabase, user.id);
+      if (teacherClassIds.length === 0) {
+        builder = builder.in('class_id', []);
+      } else {
+        builder = builder.in('class_id', teacherClassIds);
+      }
+      if (!params?.status) {
+        builder = builder.eq('status', 'active');
+      }
     }
-  }
 
-  if (params?.classId) {
-    builder = builder.eq('class_id', params.classId);
-  }
+    if (params?.classId) {
+      builder = builder.eq('class_id', params.classId);
+    }
 
-  if (params?.status) {
-    builder = builder.eq('status', params.status);
-  }
+    if (params?.status) {
+      builder = builder.eq('status', params.status);
+    }
 
-  if (query) {
-    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%,parent_name.ilike.%${query}%,parent_phone.ilike.%${query}%,class_name.ilike.%${query}%`);
-  }
+    if (searchQuery) {
+      builder = builder.or(`full_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_name.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%,class_name.ilike.%${searchQuery}%`);
+    }
+
+    return builder;
+  };
+
+  let builder = await applyStudentFilters(
+    supabase
+      .from('student_directory')
+      .select('*')
+      .order('level_order', { ascending: true })
+      .order('full_name', { ascending: true })
+      .range(from, to),
+  );
 
   const { data, error } = await builder;
 
   if (error) {
-    console.error(error);
-    return [];
+    console.error('getStudents() failed ordering by level_order; falling back to class_name ordering', {
+      error,
+      params: {
+        query: params?.query,
+        classId: params?.classId,
+        status: params?.status,
+        page,
+        pageSize,
+      },
+    });
+
+    const fallbackBuilder = await applyStudentFilters(
+      supabase
+        .from('student_directory')
+        .select('*')
+        .order('class_name', { ascending: true })
+        .order('full_name', { ascending: true })
+        .range(from, to),
+    );
+
+    const { data: fallbackData, error: fallbackError } = await fallbackBuilder;
+    if (fallbackError) {
+      console.error('getStudents() fallback ordering also failed', {
+        error: fallbackError,
+        params: {
+          query: params?.query,
+          classId: params?.classId,
+          status: params?.status,
+          page,
+          pageSize,
+        },
+      });
+      return [];
+    }
+
+    return fallbackData ?? [];
   }
 
   return data ?? [];
@@ -151,7 +211,7 @@ export async function getStudents(params?: {
 
 export async function getStudentsCount(params?: { query?: string; classId?: string; status?: string }, user?: SessionUser): Promise<number> {
   const supabase = await createClient();
-  const query = params?.query ? sanitizeSearchQuery(params.query) : undefined;
+  const searchQuery = params?.query ? sanitizeSearchQuery(params.query) : undefined;
 
   let builder = supabase
     .from('student_directory')
@@ -173,8 +233,8 @@ export async function getStudentsCount(params?: { query?: string; classId?: stri
     builder = builder.eq('status', params.status);
   }
 
-  if (query) {
-    builder = builder.or(`full_name.ilike.%${query}%,admission_number.ilike.%${query}%,parent_name.ilike.%${query}%,parent_phone.ilike.%${query}%,class_name.ilike.%${query}%`);
+  if (searchQuery) {
+    builder = builder.or(`full_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_name.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%,class_name.ilike.%${searchQuery}%`);
   }
 
   const { count, error } = await builder;
@@ -193,10 +253,10 @@ export async function getStudentById(studentId: string): Promise<StudentDirector
     .from('student_directory')
     .select('*')
     .eq('id', studentId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    console.error(error);
+    console.error('getStudentById failed:', error);
     return null;
   }
 
@@ -208,6 +268,7 @@ export async function getFeeStructures(): Promise<FeeStructureSummary[]> {
   const { data, error } = await supabase
     .from('fee_structure_overview')
     .select('*')
+    .eq('archived', false)
     .order('academic_year', { ascending: false })
     .order('term', { ascending: true })
     .order('class_name', { ascending: true });
@@ -224,44 +285,162 @@ export async function getStudentFeeOverview(studentId: string): Promise<{
   accounts: StudentFeeAccountSummary[];
   payments: FeePaymentHistoryItem[];
 }> {
+  console.log('\n=== GET STUDENT FEE OVERVIEW START ===');
+  console.log('Student ID:', studentId);
+  
   const supabase = await createClient();
 
-  const [accountsResponse, paymentsResponse] = await Promise.all([
-    supabase
-      .from('student_fee_accounts_overview')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('academic_year', { ascending: false })
-      .order('term', { ascending: true }),
-    supabase
-      .from('fee_payment_history')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('payment_date', { ascending: false }),
-  ]);
-
-  if (accountsResponse.error) {
-    console.error(accountsResponse.error);
+  // Before fetching, ensure fee accounts exist (defensive programming)
+  console.log('Running defensive fee account check...');
+  try {
+    // Get student to check if they have a class and fee structures
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('class_id, status')
+      .eq('id', studentId)
+      .maybeSingle();
+    
+    if (studentError) {
+      console.error('Error fetching student:', studentError);
+    }
+    
+    if (student?.class_id && student?.status === 'active') {
+      // Check if any fee accounts are missing or have zero expected_amount
+      const { data: feeStructures } = await supabase
+        .from('fee_structures')
+        .select('id, expected_amount')
+        .eq('class_id', student.class_id)
+        .eq('archived', false);
+      
+      if (feeStructures && feeStructures.length > 0) {
+        for (const fs of feeStructures) {
+          const { data: account } = await supabase
+            .from('student_fee_accounts')
+            .select('id, expected_amount')
+            .eq('student_id', studentId)
+            .eq('fee_structure_id', fs.id)
+            .maybeSingle();
+          
+          if (!account) {
+            // Create missing account
+            console.log(`Creating missing fee account for fee structure ${fs.id} with amount ${fs.expected_amount}`);
+            const { error: insertError } = await supabase.from('student_fee_accounts').insert({
+              student_id: studentId,
+              fee_structure_id: fs.id,
+              expected_amount: fs.expected_amount,
+            });
+            if (insertError) {
+              console.error(`Error creating account: ${insertError.message}`);
+            } else {
+              console.log(`✓ Created missing fee account`);
+            }
+          } else if (account.expected_amount === 0 || account.expected_amount === '0' || Number(account.expected_amount) === 0) {
+            // Fix zero amount
+            console.log(`⚠️ Fixing zero expected_amount in account ${account.id}, setting to ${fs.expected_amount}`);
+            const { error: updateError } = await supabase
+              .from('student_fee_accounts')
+              .update({ expected_amount: fs.expected_amount })
+              .eq('id', account.id);
+            if (updateError) {
+              console.error(`Error updating account: ${updateError.message}`);
+            } else {
+              console.log(`✓ Fixed zero expected_amount`);
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error in defensive fee account check:', e);
   }
-  if (paymentsResponse.error) {
-    console.error(paymentsResponse.error);
+
+  // Fetch fee accounts with proper expected amounts
+  const { data: rawAccounts, error: accountsError } = await supabase
+    .from('student_fee_accounts')
+    .select(`
+      id,
+      student_id,
+      fee_structure_id,
+      expected_amount,
+      fee_structures!inner(
+        academic_year,
+        term,
+        expected_amount,
+        classes!inner(name)
+      )
+    `)
+    .eq('student_id', studentId);
+
+  if (accountsError) {
+    console.error('ERROR fetching fee accounts:', accountsError);
+    return { accounts: [], payments: [] };
   }
 
+  // Fetch all payments for this student
+  const { data: payments, error: paymentsError } = await supabase
+    .from('fee_payment_history')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('payment_date', { ascending: false });
+
+  if (paymentsError) {
+    console.error('ERROR fetching fee payments:', paymentsError);
+    return { accounts: [], payments: [] };
+  }
+
+  // Calculate accounts with proper totals
+  const accounts: StudentFeeAccountSummary[] = (rawAccounts ?? []).map((account: any) => {
+    // Get expected amount with fallback
+    const expectedAmount = account.expected_amount && Number(account.expected_amount) > 0
+      ? Number(account.expected_amount)
+      : Number(account.fee_structures?.expected_amount ?? 0);
+
+    // Calculate total paid by summing payments for this account
+    const totalPaid = (payments ?? [])
+      .filter(payment => payment.student_fee_account_id === account.id)
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+
+    const balance = expectedAmount - totalPaid;
+    const status = balance <= 0 ? 'Cleared' : totalPaid > 0 ? 'Partial' : 'Not Paid';
+
+    return {
+      id: account.id,
+      student_id: account.student_id,
+      fee_structure_id: account.fee_structure_id,
+      academic_year: account.fee_structures?.academic_year ?? '',
+      term: account.fee_structures?.term ?? 'TERM_1',
+      class_name: account.fee_structures?.classes?.name ?? null,
+      expected_amount: expectedAmount,
+      total_paid: totalPaid,
+      balance: balance,
+      status: status as 'Cleared' | 'Partial' | 'Not Paid',
+    };
+  });
+
+  console.log('Calculated accounts:', accounts);
+  console.log('Payments:', payments);
+  
+  console.log('=== GET STUDENT FEE OVERVIEW END ===\n');
+  
   return {
-    accounts: accountsResponse.data ?? [],
-    payments: paymentsResponse.data ?? [],
+    accounts,
+    payments: payments ?? [],
   };
 }
 
 export async function getFeeDashboardStats(): Promise<FeeDashboardStats> {
+  console.log('\n=== GET FEE DASHBOARD STATS START ===');
+  
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('fee_dashboard_overview')
     .select('*')
     .single();
 
+  console.log('Dashboard stats response:', { data, error });
+
   if (error) {
-    console.error(error);
+    console.error('ERROR fetching fee dashboard stats:', error);
     return {
       totalExpected: 0,
       totalCollected: 0,
@@ -405,17 +584,14 @@ export async function getRecentPromotions(limit = 10) {
 
 export async function getSessionUserProfile(): Promise<SessionUser | null> {
   const supabase = await createClient();
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
 
-  if (sessionError) {
-    console.error('Failed to refresh session', sessionError);
-  }
-
-  const user = sessionData?.session?.user ?? (await supabase.auth.getUser()).data.user;
-
-  if (!user) {
+  if (userError || !userData.user) {
+    console.error('Failed to get user', userError);
     return null;
   }
+
+  const user = userData.user;
 
   const { data: profile, error } = await supabase
     .from('profiles')

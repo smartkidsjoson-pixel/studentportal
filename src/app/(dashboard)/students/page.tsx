@@ -4,6 +4,7 @@ import { StudentForm } from '@/components/students/student-form';
 import { StatusPill } from '@/components/ui/status-pill';
 import { EmptyState } from '@/components/ui/empty-state';
 import { getClasses, getStudents, getStudentsCount } from '@/lib/data';
+import { formatCurrency } from '@/lib/utils';
 
 export default async function StudentsPage({
   searchParams,
@@ -59,7 +60,7 @@ export default async function StudentsPage({
           <button type="submit">Search</button>
         </form>
 
-        {students.length === 0 ? (
+        {students?.length === 0 ? (
           <EmptyState
             title="No students found"
             description={params.q || params.classId || params.status ? 'Try another filter or clear the search.' : 'Register students to populate the directory.'}
@@ -75,18 +76,26 @@ export default async function StudentsPage({
                     <th>Name</th>
                     <th>Admission No.</th>
                     <th>Class</th>
-                    <th>Parent</th>
+                    <th>Parent Contact</th>
+                    <th>Fee Expected</th>
+                    <th>Total Paid</th>
+                    <th>Balance</th>
+                    <th>Payment Status</th>
                     <th>Status</th>
                     <th>Profile</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
+                  {(students ?? []).map((student) => (
                     <tr key={student.id}>
                       <td>{student.full_name}</td>
                       <td>{student.admission_number}</td>
                       <td>{student.class_name ?? 'Unassigned'}</td>
                       <td>{student.parent_name ?? student.parent_phone ?? 'N/A'}</td>
+                      <td>{formatCurrency(Number(student?.fee_expected ?? 0))}</td>
+                      <td>{formatCurrency(Number(student?.total_paid ?? 0))}</td>
+                      <td>{formatCurrency(Number(student?.balance ?? 0))}</td>
+                      <td><StatusPill value={student?.payment_status ?? 'Not Paid'} /></td>
                       <td><StatusPill value={student.status} /></td>
                       <td>
                         <Link href={`/students/${student.id}`}>View</Link>

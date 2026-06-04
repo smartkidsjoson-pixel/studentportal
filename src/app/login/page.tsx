@@ -1,37 +1,51 @@
-import Link from 'next/link';
 import Image from 'next/image';
 import LoginForm from '@/components/auth/LoginForm';
 
 export default function LoginPage() {
   return (
     <div className="login-shell">
-      <section className="login-hero">
+      <div className="login-hero">
         <div>
-          <Image src="/logos/IMG-20260506-WA0004(1).jpg" alt="School Logo" width={150} height={100} />
-          <p className="brand-pill">CBC School Portal</p>
-          <h1>Secure school access for owners and teachers.</h1>
+          <div className="brand-pill">Joson's SmartKids Academy</div>
+          <div className="mt-6" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="logo-badge">
+              <Image
+                src="/logos/IMG-20260506-WA0004(1).jpg"
+                alt="Joson's SmartKids Academy"
+                width={64}
+                height={64}
+                className="logo-image"
+                priority
+              />
+            </div>
+            <div>
+              <p className="eyebrow">Private academy portal</p>
+              <h1>Welcome back</h1>
+            </div>
+          </div>
           <p className="hero-copy-text">
-            Sign in to manage learner records, class assignments and promotions with a calm, dependable interface.
+            Secure access for administrators of Joson's SmartKids Academy. Manage student records, fee collection, and class operations with confidence.
           </p>
           <ul className="login-list">
-            <li>Role-based teacher access</li>
-            <li>Protected student records</li>
-            <li>Fast class and promotion workflows</li>
+            <li>Premium private academy dashboard</li>
+            <li>Automated fee accounts and payment tracking</li>
+            <li>Clean, secure administration workflow</li>
           </ul>
         </div>
-      </section>
 
-      <div className="auth-card">
-        <div className="auth-header">
-          <p className="eyebrow">Sign in</p>
-          <h2>Welcome back</h2>
-        </div>
-        <div className="mt-6">
+        <div className="auth-card">
+          <div className="auth-header">
+            <span className="eyebrow">Sign in</span>
+            <h2>Access the school management portal</h2>
+            <p className="login-help">Enter your username and password to continue.</p>
+          </div>
+
           <LoginForm />
+
+          <p className="login-help" style={{ marginTop: '1.5rem' }}>
+            New to the portal? <a href="/setup">Create the first administrator account</a>.
+          </p>
         </div>
-        <p className="login-help">
-          First time here? <Link href="/setup">Create administrator account</Link>.
-        </p>
       </div>
     </div>
   );

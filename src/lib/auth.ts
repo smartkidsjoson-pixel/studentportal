@@ -13,21 +13,18 @@ function normalizeRole(role: unknown): UserRole {
 
 export async function getCurrentSessionUser() {
   const supabase = await createClient();
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
 
-  if (sessionError) {
-    console.error('Failed to refresh session', sessionError);
-  }
-
-  const user = sessionData?.session?.user ?? (await supabase.auth.getUser()).data.user;
-
-  if (!user) {
+  if (userError || !userData.user) {
+    console.error('Failed to get user', userError);
     return null;
   }
 
+  const user = userData.user;
+
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('full_name, role')
+    .select('full_name, role, username')
     .eq('id', user.id)
     .single();
 
@@ -44,6 +41,7 @@ export async function getCurrentSessionUser() {
     id: user.id,
     email: user.email ?? '',
     fullName: profile?.full_name ?? (metadata.full_name as string | undefined) ?? null,
+    username: profile?.username ?? (metadata.username as string | undefined) ?? null,
     role: finalRole,
   };
 }

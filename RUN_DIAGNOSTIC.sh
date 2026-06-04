@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# DIAGNOSTIC AND FIX SCRIPT FOR PAYMENT RECORDING FAILURES
+# This script will help diagnose and fix the fee payment recording issues
+
+set -e
+
+echo "==============================================="
+echo "STUDENT PORTAL - PAYMENT RECORDING DIAGNOSTICS"
+echo "==============================================="
+echo ""
+
+# Check if we have the necessary environment variables
+if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+    echo "ERROR: NEXT_PUBLIC_SUPABASE_URL not set"
+    exit 1
+fi
+
+echo "✓ Supabase URL detected: $NEXT_PUBLIC_SUPABASE_URL"
+echo ""
+
+# Step 1: Start the development server
+echo "==============================================="
+echo "STEP 1: Starting development server..."
+echo "==============================================="
+echo ""
+echo "The development server will start with detailed logging enabled."
+echo "Watch the console output for:"
+echo "  - 'GET STUDENT FEE OVERVIEW' logs"
+echo "  - 'RECORD FEE PAYMENT' logs"
+echo "  - Error messages with actual Supabase errors (not generic)"
+echo ""
+echo "To run tests:"
+echo "1. npm run dev"
+echo "2. In browser:"
+echo "   - Go to Fees page"
+echo "   - Create a fee structure"
+echo "   - Go to Students page"
+echo "   - Create/select a student in that class"
+echo "   - View student profile"
+echo "   - Check fee section - should show expected amount"
+echo "   - Try to record a payment"
+echo "3. Monitor console for detailed logs"
+echo ""
+echo "==============================================="
+echo "WHAT WAS FIXED:"
+echo "==============================================="
+echo ""
+echo "✓ Added detailed error logging to expose actual Supabase errors"
+echo "✓ Added defensive fee account creation in getStudentFeeOverview()"
+echo "✓ Added fee account verification before payment recording"
+echo "✓ Added visible error display in payment form (red text)"
+echo "✓ Added console logging at every step of payment flow"
+echo ""
+echo "If expected_amount still shows 0:"
+echo "  1. Check the database directly using DIAGNOSTIC_QUERIES.sql"
+echo "  2. Verify fee structures exist"
+echo "  3. Check if student_fee_accounts table has rows"
+echo "  4. Look for 'CREATING MISSING FEE ACCOUNT' logs"
+echo ""
+echo "==============================================="
+echo "QUICK DIAGNOSTIC CHECKLIST:"
+echo "==============================================="
+echo ""
+echo "[ ] 1. Create fee structure (Fees page)"
+echo "    Expected: 'Fee structure created successfully'"
+echo "    Console: Should see 'CREATE FEE STRUCTURE ACTION START' and 'Inserting fee structure'"
+echo ""
+echo "[ ] 2. Create student in that class (Students page)"
+echo "    Expected: Student created successfully"
+echo "    Console: Should see student creation logs"
+echo ""
+echo "[ ] 3. View student profile and check Fees section"
+echo "    Expected: Expected amount displayed (not 0.00)"
+echo "    Console: Should see 'GET STUDENT FEE OVERVIEW' with account data"
+echo "    If 0: Look for 'FIXING: Account has zero expected_amount' or 'CREATING MISSING FEE ACCOUNT'"
+echo ""
+echo "[ ] 4. Try to record a payment"
+echo "    Expected: 'Payment recorded successfully'"
+echo "    Console: Should see 'RECORD FEE PAYMENT ACTION START' and 'Payment inserted successfully'"
+echo "    If error: Look for detailed error message (not generic). Copy full error to diagnose."
+echo ""
