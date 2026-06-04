@@ -40,7 +40,7 @@ export default function LoginForm() {
             type="password"
             placeholder="Enter your password"
             required
-            minLength={6}
+            minLength={4}
             className="form-input"
             autoComplete="current-password"
           />
