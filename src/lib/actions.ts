@@ -310,6 +310,16 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
     return { error: 'Username not found' };
   }
 
+  // Extra diagnostic logging for dedicated developer account
+  try {
+    const uname = (profile.username ?? '').toString().toLowerCase();
+    if (uname === 'developer') {
+      console.log('[Developer Login] Developer account lookup successful for username:', profile.username, 'id:', profile.id);
+    }
+  } catch (e) {
+    console.error('[Developer Login] Error during developer lookup logging', e);
+  }
+
   if (!profile.email) {
     console.error('Profile email missing for user:', profile.id);
     return { error: 'Account configuration error: missing email' };

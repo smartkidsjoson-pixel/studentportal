@@ -65,8 +65,9 @@ export async function getTeachers(): Promise<TeacherProfile[]> {
     console.error('Failed to read staff_directory view, falling back to profiles', error);
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('profiles')
-      .select('id, full_name, role, is_active')
+      .select('id, full_name, role, is_active, username')
       .in('role', ['OWNER', 'TEACHER'])
+      .not('username', 'eq', 'developer')
       .order('full_name', { ascending: true });
 
     if (fallbackError) {
