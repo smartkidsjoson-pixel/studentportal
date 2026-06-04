@@ -21,6 +21,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
   role public.app_role not null default 'TEACHER',
+  is_active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );

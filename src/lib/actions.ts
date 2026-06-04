@@ -119,13 +119,18 @@ const assignTeacherClassSchema = z.object({
   class_id: z.string().uuid(),
 });
 
-const toggleTeacherStatusSchema = z.object({
+const removeTeacherClassSchema = z.object({
   teacher_id: z.string().uuid(),
-  is_active: z.string().transform((value) => value === 'true'),
+  class_id: z.string().uuid(),
+});
+
+const deleteTeacherSchema = z.object({
+  teacher_id: z.string().uuid(),
 });
 
 const promoteStudentsSchema = z.object({
   current_class_id: z.string().uuid(),
+  target_class_id: z.string().uuid().optional(),
   student_ids: z.array(z.string().uuid()).min(1, 'Select at least one student to promote'),
 });
 
@@ -484,11 +489,16 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
   });
 
   if (!parsed.success) {
+    console.warn('[Teacher Creation] Validation failed:', parsed.error.errors);
     return { error: 'Provide valid staff details and a secure password.' };
   }
 
   try {
+    console.log('[Teacher Creation] Starting creation for:', parsed.data.email, 'Role:', parsed.data.role);
+    
     const admin = createAdminClient();
+    console.log('[Teacher Creation] Creating auth user');
+    
     const { data, error } = await admin.auth.admin.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -498,17 +508,32 @@ export async function createTeacherAction(_prevState: ActionState, formData: For
       },
       email_confirm: true,
     });
-    if (error) throw error;
+    
+    if (error) {
+      console.error('[Teacher Creation] Auth creation failed:', error);
+      throw error;
+    }
+    
+    console.log('[Teacher Creation] Auth user created with ID:', data.user.id);
 
     const supabase = await createClient();
+    console.log('[Teacher Creation] Creating profile record');
+    
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
       role: parsed.data.role,
       is_active: true,
     });
-    if (profileError) throw profileError;
+    
+    if (profileError) {
+      console.error('[Teacher Creation] Profile creation failed:', profileError);
+      throw profileError;
+    }
+    
+    console.log('[Teacher Creation] Teacher created successfully:', data.user.id);
   } catch (e) {
+    console.error('[Teacher Creation] Caught error:', e);
     return handleActionError(e);
   }
 
@@ -525,11 +550,16 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
   });
 
   if (!parsed.success) {
+    console.warn('[Initial Admin Creation] Validation failed:', parsed.error.errors);
     return { error: 'Provide valid administrator details and a secure password.' };
   }
 
   try {
+    console.log('[Initial Admin Creation] Starting creation for:', parsed.data.email);
+    
     const admin = createAdminClient();
+    console.log('[Initial Admin Creation] Creating auth user');
+    
     const { data, error } = await admin.auth.admin.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -539,17 +569,32 @@ export async function createInitialAdminAction(_prevState: ActionState, formData
       },
       email_confirm: true,
     });
-    if (error) throw error;
+    
+    if (error) {
+      console.error('[Initial Admin Creation] Auth creation failed:', error);
+      throw error;
+    }
+
+    console.log('[Initial Admin Creation] Auth user created with ID:', data.user.id);
 
     const supabase = await createClient();
+    console.log('[Initial Admin Creation] Creating profile record');
+    
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       full_name: parsed.data.full_name,
       role: parsed.data.role,
       is_active: true,
     });
-    if (profileError) throw profileError;
+    
+    if (profileError) {
+      console.error('[Initial Admin Creation] Profile creation failed:', profileError);
+      throw profileError;
+    }
+
+    console.log('[Initial Admin Creation] Initial admin created successfully');
   } catch (e) {
+    console.error('[Initial Admin Creation] Caught error:', e);
     return handleActionError(e);
   }
 
@@ -564,11 +609,35 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
   });
 
   if (!parsed.success) {
+    console.warn('[Class Assignment] Validation failed:', parsed.error.errors);
     return { error: 'Select a valid teacher and class.' };
   }
 
   try {
+    console.log('[Class Assignment] Starting assignment for teacher:', parsed.data.teacher_id, 'to class:', parsed.data.class_id);
+    
     const supabase = await createClient();
+    
+    // Check if teacher exists and is active
+    console.log('[Class Assignment] Verifying teacher exists and is active');
+    const { data: teacher, error: teacherError } = await supabase
+      .from('profiles')
+      .select('id, full_name, is_active')
+      .eq('id', parsed.data.teacher_id)
+      .single();
+    
+    if (teacherError || !teacher) {
+      console.error('[Class Assignment] Teacher not found:', teacherError);
+      return { error: 'Selected teacher not found.' };
+    }
+
+    if (!teacher.is_active) {
+      console.warn('[Class Assignment] Cannot assign inactive teacher:', parsed.data.teacher_id);
+      return { error: 'Cannot assign an inactive teacher to a class.' };
+    }
+
+    console.log('[Class Assignment] Teacher verified:', teacher.full_name);
+    
     const { error } = await supabase
       .from('teacher_class_assignments')
       .upsert(
@@ -578,8 +647,15 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
         },
         { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' },
       );
-    if (error) throw error;
+    
+    if (error) {
+      console.error('[Class Assignment] Assignment failed:', error);
+      throw error;
+    }
+
+    console.log('[Class Assignment] Successfully assigned teacher to class');
   } catch (e) {
+    console.error('[Class Assignment] Caught error:', e);
     return handleActionError(e);
   }
 
@@ -587,25 +663,117 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
   redirect('/teachers');
 }
 
-export async function toggleTeacherStatusAction(formData: FormData): Promise<void> {
+export async function removeTeacherClassAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await requireOwner();
-  const parsed = toggleTeacherStatusSchema.safeParse({
+  const parsed = removeTeacherClassSchema.safeParse({
     teacher_id: formData.get('teacher_id'),
-    is_active: formData.get('is_active'),
+    class_id: formData.get('class_id'),
   });
 
   if (!parsed.success) {
+    console.warn('[Class Removal] Validation failed:', parsed.error.errors);
+    return { error: 'Select a valid teacher and class.' };
+  }
+
+  try {
+    console.log('[Class Removal] Removing teacher:', parsed.data.teacher_id, 'from class:', parsed.data.class_id);
+    
+    const supabase = await createClient();
+    
+    const { error } = await supabase
+      .from('teacher_class_assignments')
+      .delete()
+      .eq('teacher_id', parsed.data.teacher_id)
+      .eq('class_id', parsed.data.class_id);
+    
+    if (error) {
+      console.error('[Class Removal] Removal failed:', error);
+      throw error;
+    }
+
+    console.log('[Class Removal] Successfully removed teacher from class');
+  } catch (e) {
+    console.error('[Class Removal] Caught error:', e);
+    return handleActionError(e);
+  }
+
+  revalidatePath('/teachers');
+  redirect('/teachers');
+}
+
+export async function deleteTeacherAction(formData: FormData): Promise<void> {
+  await requireOwner();
+  const parsed = deleteTeacherSchema.safeParse({
+    teacher_id: formData.get('teacher_id'),
+  });
+
+  if (!parsed.success) {
+    console.error('[Teacher Deletion] Invalid teacher ID');
     throw new Error('Selected teacher record is invalid.');
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ is_active: parsed.data.is_active })
-    .eq('id', parsed.data.teacher_id);
+  try {
+    console.log('[Teacher Deletion] Starting deletion for teacher:', parsed.data.teacher_id);
+    
+    const supabase = await createClient();
+    
+    // Get teacher info before deletion for audit log
+    console.log('[Teacher Deletion] Fetching teacher details');
+    const { data: teacherData, error: fetchError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', parsed.data.teacher_id)
+      .single();
+    
+    if (fetchError) {
+      console.error('[Teacher Deletion] Failed to fetch teacher:', fetchError);
+      throw fetchError;
+    }
 
-  if (error) {
-    throw error;
+    // Delete teacher class assignments first
+    console.log('[Teacher Deletion] Deleting class assignments');
+    const { error: assignmentError } = await supabase
+      .from('teacher_class_assignments')
+      .delete()
+      .eq('teacher_id', parsed.data.teacher_id);
+    
+    if (assignmentError) {
+      console.error('[Teacher Deletion] Failed to delete assignments:', assignmentError);
+      throw assignmentError;
+    }
+
+    // Delete auth user (this will cascade delete profile due to foreign key)
+    console.log('[Teacher Deletion] Deleting auth user');
+    const admin = createAdminClient();
+    const { error: authError } = await admin.auth.admin.deleteUser(parsed.data.teacher_id);
+    
+    if (authError) {
+      console.error('[Teacher Deletion] Failed to delete auth user:', authError);
+      throw authError;
+    }
+
+    // Create audit log entry
+    console.log('[Teacher Deletion] Creating audit log entry');
+    const { error: auditError } = await supabase
+      .from('audit_logs')
+      .insert({
+        table_name: 'profiles',
+        record_id: parsed.data.teacher_id,
+        action: 'teacher_deleted',
+        changed_by: (await supabase.auth.getUser()).data.user?.id,
+        before_data: teacherData,
+        after_data: null,
+      });
+    
+    if (auditError) {
+      console.warn('[Teacher Deletion] Failed to create audit log (non-critical):', auditError);
+      // Don't throw - this is not critical for the deletion itself
+    }
+
+    console.log('[Teacher Deletion] Teacher deleted successfully');
+  } catch (e) {
+    console.error('[Teacher Deletion] Caught error:', e);
+    throw e;
   }
 
   revalidatePath('/teachers');
@@ -623,17 +791,84 @@ export async function promoteStudentsAction(formData: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
+    console.error('[Student Promotion] Validation failed:', parsed.error.errors);
     throw new Error(parsed.error.errors[0]?.message ?? 'Provide valid promotion details.');
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('promote_students', {
-    current_class_id: parsed.data.current_class_id,
-    student_ids: parsed.data.student_ids,
-  });
+  try {
+    console.log('[Student Promotion] Starting promotion for', parsed.data.student_ids.length, 'students');
+    console.log('[Student Promotion] From class:', parsed.data.current_class_id);
+    console.log('[Student Promotion] To class:', parsed.data.target_class_id || 'auto-detect (next level)');
 
-  if (error) {
-    throw error;
+    const supabase = await createClient();
+    
+    // Verify current class exists
+    const { data: currentClass, error: classError } = await supabase
+      .from('classes')
+      .select('id, name, level_order')
+      .eq('id', parsed.data.current_class_id)
+      .single();
+    
+    if (classError || !currentClass) {
+      console.error('[Student Promotion] Current class not found');
+      throw new Error('Current class not found.');
+    }
+
+    console.log('[Student Promotion] Current class verified:', currentClass.name);
+
+    // If target_class_id provided, verify it exists
+    if (parsed.data.target_class_id) {
+      const { data: targetClass, error: targetError } = await supabase
+        .from('classes')
+        .select('id, name, level_order')
+        .eq('id', parsed.data.target_class_id)
+        .single();
+      
+      if (targetError || !targetClass) {
+        console.error('[Student Promotion] Target class not found');
+        throw new Error('Target class not found.');
+      }
+
+      console.log('[Student Promotion] Target class verified:', targetClass.name);
+    }
+
+    // Verify all students are in current class and active
+    const { data: students, error: studentsError } = await supabase
+      .from('students')
+      .select('id, full_name, class_id, status')
+      .in('id', parsed.data.student_ids);
+    
+    if (studentsError) {
+      console.error('[Student Promotion] Failed to verify students:', studentsError);
+      throw studentsError;
+    }
+
+    const ineligibleStudents = students.filter(
+      s => s.class_id !== parsed.data.current_class_id || s.status !== 'active'
+    );
+
+    if (ineligibleStudents.length > 0) {
+      console.warn('[Student Promotion] Found ineligible students:', ineligibleStudents.map(s => s.id));
+      throw new Error(`${ineligibleStudents.length} student(s) are not eligible for promotion (not in current class or not active).`);
+    }
+
+    console.log('[Student Promotion] All students verified as eligible');
+
+    // Call the promotion RPC (it ignores target_class_id for now and auto-detects next class)
+    const { error } = await supabase.rpc('promote_students', {
+      current_class_id: parsed.data.current_class_id,
+      student_ids: parsed.data.student_ids,
+    });
+
+    if (error) {
+      console.error('[Student Promotion] RPC call failed:', error);
+      throw error;
+    }
+
+    console.log('[Student Promotion] Students promoted successfully');
+  } catch (e) {
+    console.error('[Student Promotion] Caught error:', e);
+    throw e;
   }
 
   revalidatePath('/students');
