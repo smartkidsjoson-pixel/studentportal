@@ -339,6 +339,15 @@ export async function loginAction(_prevState: ActionState, formData: FormData): 
       const msg = String(authError.message || authError);
       console.error('Supabase auth failure for user:', profile.id, 'msg:', msg);
 
+      // Extra diagnostics for developer account failed logins
+      try {
+        if ((profile.username ?? '').toString().toLowerCase() === 'developer') {
+          console.warn('[Developer Login] Failed login attempt for developer account. Role lookup and permission checks will be recorded.');
+        }
+      } catch (e) {
+        console.error('[Developer Login] Error while logging failed developer attempt', e);
+      }
+
       if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('invalid login')) {
         // Log failed login
         try {
