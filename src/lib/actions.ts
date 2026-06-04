@@ -1407,12 +1407,16 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
   }
 
   try {
-    console.log('[Class Assignment] Starting assignment for teacher:', parsed.data.teacher_id, 'to class:', parsed.data.class_id);
+      console.log('\n===== CLASS ASSIGNMENT START =====');
+      console.log('[1/7] Starting assignment');
+      console.log('      Teacher ID:', parsed.data.teacher_id);
+      console.log('      Class ID:', parsed.data.class_id);
+      console.log('      Timestamp:', new Date().toISOString());
     
     const supabase = await createClient();
     
-    // Check if teacher exists and is active
-    console.log('[Class Assignment] Verifying teacher exists and is active');
+      // [2/7] Check if teacher exists and is active
+      console.log('[2/7] Verifying teacher exists and is active');
     const { data: teacher, error: teacherError } = await supabase
       .from('profiles')
       .select('id, full_name, is_active')
@@ -1420,35 +1424,108 @@ export async function assignTeacherClassAction(_prevState: ActionState, formData
       .single();
     
     if (teacherError || !teacher) {
-      console.error('[Class Assignment] Teacher not found:', teacherError);
-      return { error: 'Selected teacher not found.' };
+        console.error('[2/7-ERR] Teacher not found');
+        console.error('         Error details:', teacherError?.message || 'No error message');
+        return { error: `Teacher not found. Details: ${teacherError?.message || 'Unknown error'}` };
     }
 
     if (!teacher.is_active) {
-      console.warn('[Class Assignment] Cannot assign inactive teacher:', parsed.data.teacher_id);
-      return { error: 'Cannot assign an inactive teacher to a class.' };
+        console.warn('[2/7-WARN] Teacher is inactive');
+        console.warn('          Teacher ID:', parsed.data.teacher_id);
+        console.warn('          Teacher Name:', teacher.full_name);
+        return { error: `Cannot assign inactive teacher: ${teacher.full_name}` };
     }
 
-    console.log('[Class Assignment] Teacher verified:', teacher.full_name);
+      console.log('[2/7-OK] Teacher verified');
+      console.log('         Name:', teacher.full_name);
+      console.log('         Status: ACTIVE');
     
+      // [3/7] Check if class exists
+      console.log('[3/7] Verifying class exists');
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('id', parsed.data.class_id)
+        .single();
+    
+      if (classError || !classData) {
+        console.error('[3/7-ERR] Class not found');
+        console.error('         Error details:', classError?.message || 'No error message');
+        return { error: `Class not found. Details: ${classError?.message || 'Unknown error'}` };
+      }
+    
+      console.log('[3/7-OK] Class verified');
+      console.log('         Name:', classData.name);
+    
+      // [4/7] Check if assignment already exists
+      console.log('[4/7] Checking if assignment already exists');
+      const { data: existing, error: existingError } = await supabase
+        .from('teacher_class_assignments')
+        .select('id')
+        .eq('teacher_id', parsed.data.teacher_id)
+        .eq('class_id', parsed.data.class_id)
+        .maybeSingle();
+    
+      if (existingError) {
+        console.error('[4/7-ERR] Error checking existing assignment');
+        console.error('         Error details:', existingError.message);
+      } else if (existing) {
+        console.log('[4/7-SKIP] Assignment already exists');
+        console.log('          Existing assignment ID:', existing.id);
+        return { success: `${teacher.full_name} is already assigned to ${classData.name}.` };
+      } else {
+        console.log('[4/7-OK] No existing assignment found');
+      }
+    
+      // [5/7] Check RLS policies by attempting insert
+      console.log('[5/7] Checking RLS policies and permissions');
+      const authUser = await requireOwner();
+      console.log('       User UID:', authUser?.id || 'UNKNOWN');
+    
+      // [6/7] Insert assignment
+      console.log('[6/7] Inserting assignment into teacher_class_assignments');
     const { error } = await supabase
       .from('teacher_class_assignments')
-      .upsert(
-        {
+        .insert({
           teacher_id: parsed.data.teacher_id,
           class_id: parsed.data.class_id,
-        },
-        { onConflict: 'teacher_class_assignments_teacher_id_class_id_key' },
-      );
+        });
     
     if (error) {
-      console.error('[Class Assignment] Assignment failed:', error);
-      throw error;
+        console.error('[6/7-ERR] Assignment failed');
+        console.error('         Error code:', error.code);
+        console.error('         Error message:', error.message);
+        console.error('         Error details:', error.details);
+      
+        // Specific error handling
+        if (error.code === '23505') {
+          // Unique violation
+          console.error('         Root cause: UNIQUE CONSTRAINT VIOLATION (assignment already exists)');
+          return { success: `${teacher.full_name} is already assigned to ${classData.name}.` };
+        } else if (error.code === '23503') {
+          // Foreign key violation
+          console.error('         Root cause: FOREIGN KEY VIOLATION (teacher or class not found in DB)');
+          throw new Error(`Referenced teacher or class does not exist in database`);
+        } else if (error.code === '42P01') {
+          // Table not found
+          console.error('         Root cause: TABLE NOT FOUND (teacher_class_assignments table missing)');
+          throw new Error(`Database table teacher_class_assignments does not exist`);
+        } else if (error.message.includes('row level security')) {
+          console.error('         Root cause: ROW LEVEL SECURITY POLICY VIOLATION');
+          throw new Error(`RLS policy blocked assignment. User must be OWNER role.`);
+        } else {
+          console.error('         Root cause: UNKNOWN ERROR');
+          throw error;
+        }
     }
 
-    console.log('[Class Assignment] Successfully assigned teacher to class');
+      console.log('[6/7-OK] Assignment inserted successfully');
+      console.log('[7/7] Revalidating and redirecting');
+      console.log('===== CLASS ASSIGNMENT SUCCESS =====\n');
   } catch (e) {
-    console.error('[Class Assignment] Caught error:', e);
+      console.error('===== CLASS ASSIGNMENT ERROR =====');
+      console.error('Exception caught:', e);
+      console.error('=====================================\n');
     return handleActionError(e);
   }
 
